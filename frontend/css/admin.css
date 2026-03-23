@@ -1,0 +1,58 @@
+body.admin-body {
+  background: var(--bg);
+}
+
+.admin-layout-wide {
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 24px;
+}
+
+.admin-form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.admin-car-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.admin-car-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  box-shadow: var(--shadow);
+}
+
+.admin-car-image {
+  height: 180px;
+  overflow: hidden;
+  border-radius: 12px;
+  margin-bottom: 14px;
+}
+
+.admin-car-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.btn-danger-lite {
+  border-color: rgba(220, 38, 38, 0.18);
+  color: var(--danger);
+}
+
+@media (max-width: 1100px) {
+  .admin-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .admin-form-grid {
+    grid-template-columns: 1fr;
+  }
+}

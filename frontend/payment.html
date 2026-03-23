@@ -1,0 +1,149 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment | Car Rental System</title>
+  <link rel="stylesheet" href="css/global.css">
+</head>
+<body>
+  <main class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="dashboard.html">
+        <span class="brand-mark">RR</span>
+        <span>Car Rental System</span>
+      </a>
+
+      <nav class="nav-links">
+        <a class="nav-link" href="dashboard.html">Home</a>
+        <a class="nav-link" href="booking.html">Booking</a>
+        <a class="nav-link active" href="payment.html">Payment</a>
+        <a class="nav-link" href="receipt.html">Receipt</a>
+      </nav>
+    </header>
+
+    <section class="split-layout">
+      <article class="mini-hero">
+        <span class="eyebrow">Payment page</span>
+        <h1>Complete payment for the selected booking.</h1>
+        <p>This page shows booking amount and selected payment method.</p>
+
+        <div class="steps">
+          <div class="step">
+            <strong>Car</strong>
+            <p id="carLabel">BMW M5 booking</p>
+          </div>
+          <div class="step">
+            <strong>Distance</strong>
+            <p><span id="distanceLabel">0</span> km trip</p>
+          </div>
+          <div class="step">
+            <strong>Status</strong>
+            <p>Ready</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="summary-card">
+        <div class="section-heading">
+          <div>
+            <h2>Payment details</h2>
+            <p>Select a payment method and continue.</p>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="field-group">
+            <label for="method">Payment Method</label>
+            <select class="select" id="method">
+              <option>UPI</option>
+              <option>Credit Card</option>
+              <option>Net Banking</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <label for="upi">Payment ID / Card Alias</label>
+            <input class="field" id="upi" type="text" placeholder="example@upi">
+          </div>
+
+          <div class="summary-list">
+            <div class="summary-row"><span>Payable amount</span><strong id="amt">₹0</strong></div>
+            <div class="summary-row"><span>Verification</span><strong>Secured</strong></div>
+            <div class="summary-row total"><span>Confirmation</span><strong>Instant receipt</strong></div>
+          </div>
+
+          <div id="paymentMessage" class="notice">Demo payment page.</div>
+
+          <div class="action-row">
+            <button class="btn btn-primary" type="button" onclick="pay()">Pay Now</button>
+            <a class="btn btn-ghost" href="booking.html">Back to Booking</a>
+          </div>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script src="js/api-config.js"></script>
+  <script>
+    function formatINR(amount) {
+      return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        maximumFractionDigits: 0
+      }).format(amount);
+    }
+
+    const amount = Number(localStorage.getItem('pay') || '0');
+    const bookingId = Number(localStorage.getItem('bookingId') || '0');
+    document.getElementById('amt').textContent = formatINR(amount);
+    document.getElementById('carLabel').textContent = (localStorage.getItem('carName') || 'BMW M5') + ' booking';
+    document.getElementById('distanceLabel').textContent = localStorage.getItem('tripDistance') || '0';
+
+    async function pay() {
+      const method = document.getElementById('method').value;
+      const alias = document.getElementById('upi').value.trim();
+      const paymentMessage = document.getElementById('paymentMessage');
+
+      if (!bookingId || !amount || !alias) {
+        paymentMessage.className = 'warning-banner';
+        paymentMessage.textContent = 'Missing booking, amount, or payment detail.';
+        return;
+      }
+
+      const payload = new URLSearchParams();
+      payload.append('booking_id', bookingId);
+      payload.append('amount', amount);
+      payload.append('payment_method', method + ' - ' + alias);
+      payload.append('payment_status', 'Paid');
+
+      try {
+        const response = await fetch(apiUrl('/payments'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: payload.toString()
+        });
+
+        const result = await response.json();
+
+        if (result.status) {
+          localStorage.setItem('paymentId', result.data.payment_id);
+          paymentMessage.className = 'success-banner';
+          paymentMessage.textContent = 'Payment successful. Redirecting to receipt page.';
+          setTimeout(function () {
+            window.location.href = 'receipt.html';
+          }, 1000);
+        } else {
+          paymentMessage.className = 'warning-banner';
+          paymentMessage.textContent = result.message;
+        }
+      } catch (error) {
+        paymentMessage.className = 'warning-banner';
+        paymentMessage.textContent = 'Server error while making payment.';
+      }
+    }
+  </script>
+</body>
+</html>

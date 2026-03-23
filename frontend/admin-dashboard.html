@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard | Car Rental System</title>
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body class="admin-body">
+  <main class="admin-layout admin-layout-wide">
+    <aside class="admin-sidebar">
+      <a class="brand" href="admin-dashboard.html">
+        <span class="brand-mark">RR</span>
+        <span>Admin Panel</span>
+      </a>
+
+      <p style="margin-top:18px; color:var(--muted); line-height:1.7;">Manage cars, update fleet details, and keep the customer view in sync.</p>
+
+      <div class="admin-nav">
+        <button class="active" type="button" onclick="showSection('overview', this)">Overview</button>
+        <button type="button" onclick="showSection('addcar', this)">Manage Cars</button>
+        <button type="button" onclick="showSection('requests', this)">Requests</button>
+        <button type="button" onclick="showSection('history', this)">History</button>
+      </div>
+    </aside>
+
+    <section class="admin-main">
+      <article class="admin-card">
+        <div class="admin-topbar">
+          <div>
+            <span class="eyebrow">Dashboard</span>
+            <h1 style="margin-top:12px;">Admin Dashboard</h1>
+            <p class="muted" style="margin-top:8px;">Add, edit, delete, and review cars from one place.</p>
+          </div>
+          <a class="btn btn-primary" href="admin-login.html">Logout</a>
+        </div>
+      </article>
+
+      <section id="overview" class="admin-section active">
+        <div class="kpi-grid">
+          <div class="kpi">
+            <span class="muted">Total cars</span>
+            <strong id="totalCarsKpi">0</strong>
+            <p class="muted">Live cars in database</p>
+          </div>
+          <div class="kpi">
+            <span class="muted">Available</span>
+            <strong id="availableCarsKpi">0</strong>
+            <p class="muted">Visible to users</p>
+          </div>
+          <div class="kpi">
+            <span class="muted">Pending requests</span>
+            <strong id="pendingRequestsKpi">0</strong>
+            <p class="muted">Need approval</p>
+          </div>
+          <div class="kpi">
+            <span class="muted">Revenue</span>
+            <strong>&#8377;58,000</strong>
+            <p class="muted">Demo metric</p>
+          </div>
+        </div>
+
+        <article class="admin-card">
+          <div class="section-heading">
+            <div>
+              <h2>Fleet Snapshot</h2>
+              <p>Recently added cars appear here and on the user cars page.</p>
+            </div>
+            <button class="btn btn-ghost" type="button" onclick="loadAdminCars()">Refresh</button>
+          </div>
+          <div id="overviewCars" class="admin-car-grid"></div>
+        </article>
+      </section>
+
+      <section id="addcar" class="admin-section">
+        <article class="admin-card">
+          <div class="section-heading">
+            <div>
+              <h2 id="formTitle">Add a new car</h2>
+              <p>Use this form to create or update a car record.</p>
+            </div>
+          </div>
+
+          <input id="carId" type="hidden">
+
+          <div class="admin-form-grid">
+            <div class="field-group">
+              <label for="carModel">Car Model</label>
+              <input class="field" id="carModel" type="text" placeholder="BMW M5">
+            </div>
+            <div class="field-group">
+              <label for="brand">Brand</label>
+              <input class="field" id="brand" type="text" placeholder="BMW">
+            </div>
+            <div class="field-group">
+              <label for="category">Category</label>
+              <select class="select" id="category">
+                <option>Luxury</option>
+                <option>Economy</option>
+                <option>SUV</option>
+                <option>Sports</option>
+                <option>General</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label for="price">Price per KM</label>
+              <input class="field" id="price" type="number" placeholder="18">
+            </div>
+          </div>
+
+          <div class="field-group" style="margin-top:18px;">
+            <label for="conditions">Rental Conditions</label>
+            <textarea class="textarea" id="conditions" rows="4" placeholder="Insurance included, no smoking, fuel policy..."></textarea>
+          </div>
+
+          <div class="admin-form-grid" style="margin-top:18px;">
+            <div class="field-group">
+              <label for="status">Status</label>
+              <select class="select" id="status">
+                <option>Available</option>
+                <option>Booked</option>
+                <option>Service</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label for="carImage">Car Image</label>
+              <input class="field" id="carImage" type="file" accept="image/*">
+            </div>
+          </div>
+
+          <div id="imageName" class="notice" style="margin-top:10px;">No image selected.</div>
+          <div id="addCarMessage" class="notice" style="margin-top:18px;">Fill the form and save. Changes will reflect on the user cars page.</div>
+
+          <div class="action-row">
+            <button id="saveCarButton" class="btn btn-primary" type="button" onclick="saveCar()">Save Car</button>
+            <button class="btn btn-ghost" type="button" onclick="document.getElementById('carImage').click()">Upload Image</button>
+            <button class="btn btn-ghost" type="button" onclick="resetForm()">Clear Form</button>
+          </div>
+        </article>
+
+        <article class="admin-card">
+          <div class="section-heading">
+            <div>
+              <h2>Manage Existing Cars</h2>
+              <p>Edit or delete any car and the user page will reflect it on reload.</p>
+            </div>
+          </div>
+          <div id="manageCarsGrid" class="admin-car-grid"></div>
+        </article>
+      </section>
+
+      <section id="requests" class="admin-section">
+        <article class="admin-card">
+          <div class="section-heading">
+            <div>
+              <h2>Booking requests</h2>
+              <p>Approve or reject booking requests.</p>
+            </div>
+          </div>
+          <div class="request-grid">
+            <div id="requestsGrid" class="request-grid"></div>
+          </div>
+        </article>
+      </section>
+
+      <section id="history" class="admin-section">
+        <article class="admin-card">
+          <div class="section-heading">
+            <div>
+              <h2>Booking history</h2>
+              <p>Previous booking records.</p>
+            </div>
+          </div>
+          <div class="history-grid">
+            <div id="historyGrid" class="history-grid"></div>
+          </div>
+        </article>
+      </section>
+    </section>
+  </main>
+
+  <div id="notify" class="notify">New booking request received for BMW M5.</div>
+
+  <script src="js/api-config.js"></script>
+  <script>
+    let adminCars = [];
+    let pendingBookings = [];
+    let bookingHistory = [];
+
+    function showSection(id, element) {
+      document.querySelectorAll('.admin-section').forEach(function (section) {
+        section.classList.remove('active');
+      });
+
+      document.querySelectorAll('.admin-nav button').forEach(function (button) {
+        button.classList.remove('active');
+      });
+
+      document.getElementById(id).classList.add('active');
+      element.classList.add('active');
+    }
+
+    function getImagePath(imagePath) {
+      return apiAssetUrl(imagePath || 'images/ui.jpg');
+    }
+
+    function getImageLabel(imagePath) {
+      if (!imagePath) {
+        return 'No image';
+      }
+
+      const cleanPath = String(imagePath).split('?')[0];
+      const parts = cleanPath.split('/');
+      return parts[parts.length - 1] || 'Car image';
+    }
+
+    function updateKpis() {
+      document.getElementById('totalCarsKpi').textContent = String(adminCars.length);
+      document.getElementById('availableCarsKpi').textContent = String(adminCars.filter(function (car) {
+        return car.status === 'Available';
+      }).length);
+      document.getElementById('pendingRequestsKpi').textContent = String(pendingBookings.length);
+    }
+
+    function renderCars() {
+      const overviewCars = document.getElementById('overviewCars');
+      const manageCarsGrid = document.getElementById('manageCarsGrid');
+
+      if (!adminCars.length) {
+        overviewCars.innerHTML = '<div class="notice">No cars found in database.</div>';
+        manageCarsGrid.innerHTML = '<div class="notice">No cars available to manage.</div>';
+        updateKpis();
+        return;
+      }
+
+      const cardsHtml = adminCars.map(function (car) {
+        return `
+          <article class="admin-car-card">
+            <div class="admin-car-image">
+              <img src="${getImagePath(car.image)}" alt="${car.name}">
+            </div>
+            <div class="price-line">
+              <h3>${car.name}</h3>
+              <span class="status-chip ${car.status === 'Available' ? 'approved' : 'pending'}">${car.status}</span>
+            </div>
+            <p class="muted">${car.brand} • ${car.category}</p>
+            <p class="muted">${car.rental_conditions || 'No rental conditions added yet.'}</p>
+            <div class="summary-list">
+              <div class="summary-row"><span>Price</span><strong>₹${car.price_per_day} / km</strong></div>
+              <div class="summary-row"><span>Image</span><strong title="${car.image}">${getImageLabel(car.image)}</strong></div>
+            </div>
+            <div class="action-row">
+              <button class="btn btn-primary" type="button" onclick="editCar(${car.id})">Edit</button>
+              <button class="btn btn-ghost btn-danger-lite" type="button" onclick="deleteCar(${car.id})">Delete</button>
+            </div>
+          </article>
+        `;
+      }).join('');
+
+      overviewCars.innerHTML = cardsHtml;
+      manageCarsGrid.innerHTML = cardsHtml;
+      updateKpis();
+    }
+
+    function renderRequests() {
+      const requestsGrid = document.getElementById('requestsGrid');
+
+      if (!pendingBookings.length) {
+        requestsGrid.innerHTML = '<div class="notice">No pending booking requests.</div>';
+        updateKpis();
+        return;
+      }
+
+      requestsGrid.innerHTML = pendingBookings.map(function (booking) {
+        const amount = booking.payment_amount || booking.total_ammount || 0;
+        return `
+          <div class="request-card">
+            <div class="price-line">
+              <div>
+                <h3>${booking.user_name || 'Customer'} - ${booking.car}</h3>
+                <p class="muted">${booking.pickup_date} to ${booking.return_date}</p>
+              </div>
+              <span class="status-chip pending">${booking.status}</span>
+            </div>
+            <div class="request-meta">
+              <span class="chip" style="background:var(--surface-soft); color:var(--text-soft);">${booking.user_email || 'No email'}</span>
+              <span class="chip" style="background:var(--surface-soft); color:var(--text-soft);">${booking.user_phone || 'No phone'}</span>
+              <span class="chip" style="background:var(--primary-soft); color:var(--primary);">₹${amount} order value</span>
+            </div>
+            <div class="summary-list">
+              <div class="summary-row"><span>Payment</span><strong>${booking.payment_status || 'Pending'}</strong></div>
+              <div class="summary-row"><span>Method</span><strong>${booking.payment_method || 'Not submitted'}</strong></div>
+            </div>
+            <div class="action-row">
+              <button class="btn btn-primary" type="button" onclick="updateBookingStatus(${booking.id}, 'Approved')">Approve</button>
+              <button class="btn btn-ghost btn-danger-lite" type="button" onclick="updateBookingStatus(${booking.id}, 'Rejected')">Reject</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      updateKpis();
+    }
+
+    function renderHistory() {
+      const historyGrid = document.getElementById('historyGrid');
+
+      if (!bookingHistory.length) {
+        historyGrid.innerHTML = '<div class="notice">No booking history yet.</div>';
+        return;
+      }
+
+      historyGrid.innerHTML = bookingHistory.map(function (booking) {
+        const statusClass = booking.status === 'Approved' ? 'approved' : 'rejected';
+        return `
+          <div class="history-card">
+            <div class="price-line">
+              <div>
+                <h3>${booking.user_name || 'Customer'} - ${booking.car}</h3>
+                <p class="muted">${booking.pickup_date} to ${booking.return_date}</p>
+              </div>
+              <span class="status-chip ${statusClass}">${booking.status}</span>
+            </div>
+            <div class="history-meta">
+              <span class="chip" style="background:rgba(15,159,110,0.12); color:var(--success);">${booking.payment_status || 'Payment pending'}</span>
+              <span class="chip" style="background:var(--surface-soft); color:var(--text-soft);">${booking.payment_method || 'No payment method'}</span>
+            </div>
+            <div class="summary-list">
+              <div class="summary-row"><span>Email</span><strong>${booking.user_email || 'No email'}</strong></div>
+              <div class="summary-row"><span>Phone</span><strong>${booking.user_phone || 'No phone'}</strong></div>
+              <div class="summary-row"><span>Amount</span><strong>₹${booking.payment_amount || booking.total_ammount || 0}</strong></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function loadAdminCars() {
+      try {
+        const response = await fetch(apiUrl('/admin/cars') + '?ts=' + Date.now(), { cache: 'no-store' });
+        const result = await response.json();
+        adminCars = result.status ? result.data : [];
+        renderCars();
+      } catch (error) {
+        document.getElementById('manageCarsGrid').innerHTML = '<div class="warning-banner">Unable to load cars: ' + error.message + '</div>';
+      }
+    }
+
+    async function loadBookings() {
+      try {
+        const [pendingResponse, historyResponse] = await Promise.all([
+          fetch(apiUrl('/admin/bookings') + '?scope=pending&ts=' + Date.now(), { cache: 'no-store' }),
+          fetch(apiUrl('/admin/bookings') + '?scope=history&ts=' + Date.now(), { cache: 'no-store' })
+        ]);
+
+        const pendingResult = await pendingResponse.json();
+        const historyResult = await historyResponse.json();
+
+        pendingBookings = pendingResult.status ? pendingResult.data : [];
+        bookingHistory = historyResult.status ? historyResult.data : [];
+
+        renderRequests();
+        renderHistory();
+      } catch (error) {
+        document.getElementById('requestsGrid').innerHTML = '<div class="warning-banner">Unable to load requests: ' + error.message + '</div>';
+        document.getElementById('historyGrid').innerHTML = '<div class="warning-banner">Unable to load history: ' + error.message + '</div>';
+      }
+    }
+
+    async function updateBookingStatus(id, status) {
+      const payload = new URLSearchParams();
+      payload.append('status', status);
+
+      try {
+        const response = await fetch(apiUrl('/admin/bookings/' + id + '/status'), {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: payload.toString()
+        });
+
+        const result = await response.json();
+        const message = document.getElementById('addCarMessage');
+
+        if (result.status) {
+          message.className = 'success-banner';
+          message.textContent = 'Booking status updated to ' + status + '.';
+          await loadBookings();
+        } else {
+          message.className = 'warning-banner';
+          message.textContent = result.message;
+        }
+      } catch (error) {
+        document.getElementById('addCarMessage').className = 'warning-banner';
+        document.getElementById('addCarMessage').textContent = 'Booking update failed: ' + error.message;
+      }
+    }
+
+    function editCar(id) {
+      const car = adminCars.find(function (item) {
+        return Number(item.id) === Number(id);
+      });
+
+      if (!car) {
+        return;
+      }
+
+      document.getElementById('carId').value = car.id;
+      document.getElementById('carModel').value = car.name;
+      document.getElementById('brand').value = car.brand;
+      document.getElementById('category').value = car.category || 'General';
+      document.getElementById('price').value = car.price_per_day;
+      document.getElementById('conditions').value = car.rental_conditions || '';
+      document.getElementById('status').value = car.status || 'Available';
+      document.getElementById('formTitle').textContent = 'Edit car';
+      document.getElementById('saveCarButton').textContent = 'Update Car';
+      document.getElementById('addCarMessage').className = 'notice';
+      document.getElementById('addCarMessage').textContent = 'Editing "' + car.name + '". Upload a new image only if you want to replace the old one.';
+
+      const addCarButton = document.querySelector('.admin-nav button:nth-child(2)');
+      showSection('addcar', addCarButton);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function resetForm() {
+      document.getElementById('carId').value = '';
+      document.getElementById('carModel').value = '';
+      document.getElementById('brand').value = '';
+      document.getElementById('category').selectedIndex = 0;
+      document.getElementById('price').value = '';
+      document.getElementById('conditions').value = '';
+      document.getElementById('status').value = 'Available';
+      document.getElementById('carImage').value = '';
+      document.getElementById('formTitle').textContent = 'Add a new car';
+      document.getElementById('saveCarButton').textContent = 'Save Car';
+      document.getElementById('imageName').className = 'notice';
+      document.getElementById('imageName').textContent = 'No image selected.';
+      document.getElementById('addCarMessage').className = 'notice';
+      document.getElementById('addCarMessage').textContent = 'Fill the form and save. Changes will reflect on the user cars page.';
+    }
+
+    document.getElementById('carImage').addEventListener('change', function () {
+      const imageName = document.getElementById('imageName');
+      if (this.files && this.files[0]) {
+        imageName.className = 'success-banner';
+        imageName.textContent = 'Selected image: ' + this.files[0].name;
+      } else {
+        imageName.className = 'notice';
+        imageName.textContent = 'No image selected.';
+      }
+    });
+
+    async function saveCar() {
+      const message = document.getElementById('addCarMessage');
+      const imageInput = document.getElementById('carImage');
+      const formData = new FormData();
+      const carId = document.getElementById('carId').value.trim();
+
+      const name = document.getElementById('carModel').value.trim();
+      const brand = document.getElementById('brand').value.trim();
+      const category = document.getElementById('category').value;
+      const price = document.getElementById('price').value.trim();
+      const conditions = document.getElementById('conditions').value.trim();
+      const status = document.getElementById('status').value;
+
+      if (!name || !brand || !price) {
+        message.className = 'warning-banner';
+        message.textContent = 'Please fill car model, brand, and price.';
+        return;
+      }
+
+      if (!carId && (!imageInput.files || !imageInput.files[0])) {
+        message.className = 'warning-banner';
+        message.textContent = 'Please select an image while adding a new car.';
+        return;
+      }
+
+      formData.append('name', name);
+      formData.append('brand', brand);
+      formData.append('category', category);
+      formData.append('price_per_day', price);
+      formData.append('rental_conditions', conditions);
+      formData.append('status', status);
+
+      if (carId) {
+        formData.append('id', carId);
+      }
+
+      if (imageInput.files && imageInput.files[0]) {
+        formData.append('image', imageInput.files[0]);
+      }
+
+      try {
+        const endpoint = carId ? apiUrl('/admin/cars/' + carId) : apiUrl('/admin/cars');
+        const response = await fetch(endpoint, {
+          method: carId ? 'PUT' : 'POST',
+          body: formData,
+          cache: 'no-store'
+        });
+
+        const result = await response.json();
+
+        if (result.status) {
+          message.className = 'success-banner';
+          message.textContent = carId ? 'Car updated successfully. User page will show the update on refresh.' : 'Car added successfully. User page will show it on refresh.';
+          resetForm();
+          await loadAdminCars();
+        } else {
+          message.className = 'warning-banner';
+          message.textContent = result.message;
+        }
+      } catch (error) {
+        message.className = 'warning-banner';
+        message.textContent = 'Save failed: ' + error.message;
+      }
+    }
+
+    async function deleteCar(id) {
+      if (!confirm('Delete this car? This will remove it from the user cars page too.')) {
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('id', id);
+
+      try {
+        const response = await fetch(apiUrl('/admin/cars/' + id), {
+          method: 'DELETE'
+        });
+
+        const result = await response.json();
+        const message = document.getElementById('addCarMessage');
+
+        if (result.status) {
+          message.className = 'success-banner';
+          message.textContent = 'Car deleted successfully.';
+          resetForm();
+          await loadAdminCars();
+        } else {
+          message.className = 'warning-banner';
+          message.textContent = result.message;
+        }
+      } catch (error) {
+        document.getElementById('addCarMessage').className = 'warning-banner';
+        document.getElementById('addCarMessage').textContent = 'Delete failed: ' + error.message;
+      }
+    }
+
+    setInterval(function () {
+      const notify = document.getElementById('notify');
+      notify.style.display = 'block';
+
+      setTimeout(function () {
+        notify.style.display = 'none';
+      }, 3000);
+    }, 12000);
+
+    loadAdminCars();
+    loadBookings();
+  </script>
+</body>
+</html>

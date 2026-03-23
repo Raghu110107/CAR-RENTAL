@@ -1,0 +1,228 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Booking | Car Rental System</title>
+  <link rel="stylesheet" href="css/global.css">
+</head>
+<body>
+  <main class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="dashboard.html">
+        <span class="brand-mark">RR</span>
+        <span>Car Rental System</span>
+      </a>
+
+      <nav class="nav-links">
+        <a class="nav-link" href="dashboard.html">Home</a>
+        <a class="nav-link" href="cars.html">Cars</a>
+        <a class="nav-link active" href="booking.html">Booking</a>
+        <a class="nav-link" href="payment.html">Payment</a>
+      </nav>
+    </header>
+
+    <section class="split-layout">
+      <article class="mini-hero">
+        <span class="eyebrow">Booking page</span>
+        <h1>Enter trip details and check the total amount.</h1>
+        <p>The amount is calculated based on distance and coupon discount.</p>
+
+        <div class="steps">
+          <div class="step">
+            <strong>Select Car</strong>
+            <p id="selectedCarText">No car selected.</p>
+          </div>
+          <div class="step">
+            <strong>Trip Estimate</strong>
+            <p id="selectedRateText">Rate is ₹0 per kilometer.</p>
+          </div>
+          <div class="step">
+            <strong>Coupon Support</strong>
+            <p>Use STMB5 for discount.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="summary-card">
+        <div class="section-heading">
+          <div>
+            <h2>Booking form</h2>
+            <p>Fill the form and see the updated total.</p>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="field-group">
+            <label for="pickupDate">Pickup Date</label>
+            <input class="field" id="pickupDate" type="date">
+          </div>
+
+          <div class="field-group">
+            <label for="returnDate">Return Date</label>
+            <input class="field" id="returnDate" type="date">
+          </div>
+
+          <div class="field-group">
+            <label for="km">Trip Distance</label>
+            <input class="field" id="km" type="number" min="1" placeholder="Enter estimated kilometers">
+          </div>
+
+          <div class="field-group">
+            <label for="coupon">Coupon Code</label>
+            <input class="field" id="coupon" type="text" placeholder="Try STMB5">
+          </div>
+
+          <div id="couponMessage" class="notice">Use coupon STMB5 for 5% discount.</div>
+
+          <div class="action-row">
+            <button class="btn btn-primary" type="button" onclick="applyCoupon()">Apply Coupon</button>
+            <a class="btn btn-ghost" href="details.html">Edit Details</a>
+          </div>
+        </div>
+
+        <div class="summary-list">
+          <div class="summary-row"><span>Base fare</span><strong id="price">₹0</strong></div>
+          <div class="summary-row"><span>Discount</span><strong id="disc">₹0</strong></div>
+          <div class="summary-row"><span>Platform fee</span><strong id="fee">₹99</strong></div>
+          <div class="summary-row total"><span>Total payable</span><strong id="total">₹99</strong></div>
+        </div>
+
+        <div class="action-row">
+          <button class="btn btn-primary" type="button" onclick="createBooking()">Proceed to Payment</button>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script src="js/api-config.js"></script>
+  <script>
+    const selectedCar = JSON.parse(localStorage.getItem('selectedCar') || '{}');
+    const user = JSON.parse(localStorage.getItem('loggedInUser') || '{}');
+    const rate = Number(selectedCar.price_per_day || 18);
+    const platformFee = 99;
+    let price = 0;
+    let discount = 0;
+
+    document.getElementById('selectedCarText').textContent = selectedCar.name ? selectedCar.name + ' selected.' : 'BMW M5 selected.';
+    document.getElementById('selectedRateText').textContent = `Rate is ₹${rate} per kilometer.`;
+
+    function formatINR(amount) {
+      return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        maximumFractionDigits: 0
+      }).format(amount);
+    }
+
+    function updateSummary() {
+      const finalTotal = Math.max(price - discount + platformFee, platformFee);
+      document.getElementById('price').textContent = formatINR(price);
+      document.getElementById('disc').textContent = formatINR(discount);
+      document.getElementById('fee').textContent = formatINR(platformFee);
+      document.getElementById('total').textContent = formatINR(finalTotal);
+      return Math.round(finalTotal);
+    }
+
+    document.getElementById('km').addEventListener('input', function () {
+      const km = Number(this.value) || 0;
+      price = km * rate;
+      discount = 0;
+      document.getElementById('couponMessage').className = 'notice';
+      document.getElementById('couponMessage').textContent = 'Use coupon STMB5 for 5% off on short trips.';
+      updateSummary();
+    });
+
+    function applyCoupon() {
+      const code = document.getElementById('coupon').value.trim().toUpperCase();
+      const message = document.getElementById('couponMessage');
+
+      if (!price) {
+        message.className = 'warning-banner';
+        message.textContent = 'Enter trip distance before applying a coupon.';
+        return;
+      }
+
+      if (code === 'STMB5') {
+        discount = price * 0.05;
+        message.className = 'success-banner';
+        message.textContent = 'Coupon applied successfully. You saved 5% on the base fare.';
+      } else {
+        discount = 0;
+        message.className = 'warning-banner';
+        message.textContent = 'Coupon not recognized. Try STMB5 for the demo.';
+      }
+
+      updateSummary();
+    }
+
+    async function createBooking() {
+      const pickupDate = document.getElementById('pickupDate').value;
+      const returnDate = document.getElementById('returnDate').value;
+      const km = document.getElementById('km').value;
+      const payable = updateSummary();
+      const message = document.getElementById('couponMessage');
+
+      if (!user.user_id) {
+        message.className = 'warning-banner';
+        message.textContent = 'Please login first.';
+        return;
+      }
+
+      if (!selectedCar.name) {
+        message.className = 'warning-banner';
+        message.textContent = 'Please select a car first.';
+        return;
+      }
+
+      if (!pickupDate || !returnDate || !km) {
+        message.className = 'warning-banner';
+        message.textContent = 'Please fill pickup date, return date, and distance.';
+        return;
+      }
+
+      const payload = new URLSearchParams();
+      payload.append('user_id', user.user_id);
+      payload.append('car', selectedCar.name);
+      payload.append('pickup_date', pickupDate);
+      payload.append('return_date', returnDate);
+      payload.append('total_amount', payable);
+      payload.append('status', 'Pending');
+
+      try {
+        const response = await fetch(apiUrl('/bookings'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: payload.toString()
+        });
+
+        const result = await response.json();
+
+        if (result.status) {
+          localStorage.setItem('pay', String(payable));
+          localStorage.setItem('carName', selectedCar.name);
+          localStorage.setItem('tripDistance', km);
+          localStorage.setItem('bookingId', result.data.booking_id);
+          localStorage.setItem('pickupDate', pickupDate);
+          localStorage.setItem('returnDate', returnDate);
+          message.className = 'success-banner';
+          message.textContent = 'Booking created. Redirecting to payment...';
+          setTimeout(function () {
+            window.location.href = 'payment.html';
+          }, 900);
+        } else {
+          message.className = 'warning-banner';
+          message.textContent = result.message;
+        }
+      } catch (error) {
+        message.className = 'warning-banner';
+        message.textContent = 'Server error while creating booking.';
+      }
+    }
+
+    updateSummary();
+  </script>
+</body>
+</html>

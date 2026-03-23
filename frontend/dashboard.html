@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Car Rental System</title>
+  <link rel="stylesheet" href="css/global.css">
+</head>
+<body>
+  <main class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="dashboard.html">
+        <span class="brand-mark">RR</span>
+        <span>Car Rental System</span>
+      </a>
+
+      <nav class="nav-links">
+        <a class="nav-link active" href="dashboard.html">Home</a>
+        <a class="nav-link" href="cars.html">Cars</a>
+        <a class="nav-link" href="booking.html">Booking</a>
+        <a class="nav-link" href="login.html">Login</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <div class="hero-copy">
+        <span class="eyebrow">Home Page</span>
+        <h1>Car Rental System</h1>
+        <p>This project allows users to view cars, check details, book a car, and make payment.</p>
+
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="cars.html">Explore Cars</a>
+          <a class="btn btn-secondary" href="booking.html">Plan Your Ride</a>
+        </div>
+
+        <div class="hero-meta">
+          <div class="meta-chip">Cars</div>
+          <div class="meta-chip">Booking</div>
+          <div class="meta-chip">Payment</div>
+        </div>
+      </div>
+
+      <div class="hero-media">
+        <div class="hero-preview">
+          <img src="images/ui.jpg" alt="Premium car preview">
+        </div>
+        <div class="hero-card">
+          <strong>Sample car</strong>
+          <p class="muted" style="margin-top:8px;">BMW M5 available for booking.</p>
+          <div class="price-line">
+            <div class="price">&#8377;18 <small>/ km</small></div>
+            <a class="btn btn-ghost" href="details.html">View Details</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-heading">
+        <div>
+          <h2>Featured cars</h2>
+          <p>Some cars available in this project.</p>
+        </div>
+        <a class="btn btn-secondary-dark" href="cars.html">Browse Full Fleet</a>
+      </div>
+
+      <div class="grid">
+        <article class="card">
+          <div class="card-media">
+            <img src="images/ui.jpg" alt="BMW M5">
+          </div>
+          <h3>BMW M5</h3>
+          <p class="muted">Luxury sedan suitable for comfortable city and highway trips.</p>
+          <div class="price-line">
+            <div class="price">&#8377;18 <small>/ km</small></div>
+            <span class="chip" style="background:var(--surface-soft); color:var(--text-soft);">5 seats</span>
+          </div>
+          <div class="action-row">
+            <a class="btn btn-primary" href="booking.html">Rent Now</a>
+            <a class="btn btn-ghost" href="details.html">Details</a>
+          </div>
+        </article>
+
+        <article class="feature-card">
+          <h3>Booking process</h3>
+          <p class="muted">Users can choose a car and continue with booking.</p>
+        </article>
+
+        <article class="feature-card">
+          <h3>Price details</h3>
+          <p class="muted">The project shows cost per kilometer and total amount.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section split-layout">
+      <div class="summary-card">
+        <div class="section-heading">
+          <div>
+            <h2>How it works</h2>
+            <p>Steps in the system.</p>
+          </div>
+        </div>
+
+        <div class="steps">
+          <div class="step">
+            <strong>1. Select Car</strong>
+            <p>Choose a car from the available list.</p>
+          </div>
+          <div class="step">
+            <strong>2. Add Details</strong>
+            <p>Enter user and trip information.</p>
+          </div>
+          <div class="step">
+            <strong>3. Pay Securely</strong>
+            <p>Check the amount and complete payment.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="mini-hero">
+        <span class="eyebrow">Offers</span>
+        <h1>Coupons for booking.</h1>
+        <p>Users can apply offers during booking.</p>
+        <div class="summary-list">
+          <div class="summary-row"><span>Short Trip Saver</span><strong>5% OFF</strong></div>
+          <div class="summary-row"><span>Weekend Escape</span><strong>Free pickup</strong></div>
+          <div class="summary-row"><span>Premium Member</span><strong>Priority approval</strong></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

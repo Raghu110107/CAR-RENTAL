@@ -1,0 +1,74 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Receipt | Car Rental System</title>
+  <link rel="stylesheet" href="css/global.css">
+</head>
+<body>
+  <main class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="dashboard.html">
+        <span class="brand-mark">RR</span>
+        <span>Car Rental System</span>
+      </a>
+
+      <nav class="nav-links">
+        <a class="nav-link" href="dashboard.html">Home</a>
+        <a class="nav-link" href="cars.html">Cars</a>
+        <a class="nav-link" href="payment.html">Payment</a>
+        <a class="nav-link active" href="receipt.html">Receipt</a>
+      </nav>
+    </header>
+
+    <section class="centered">
+      <article class="summary-card" style="width:min(640px, 100%);">
+        <div class="success-banner">Payment completed successfully.</div>
+        <div class="section-heading" style="margin-top:18px;">
+          <div>
+            <h2>Rental receipt</h2>
+            <p>Booking and payment summary.</p>
+          </div>
+        </div>
+
+        <div class="summary-list">
+          <div class="summary-row"><span>Booking ID</span><strong id="bookingIdText">-</strong></div>
+          <div class="summary-row"><span>Payment ID</span><strong id="paymentIdText">-</strong></div>
+          <div class="summary-row"><span>Car</span><strong id="carName">BMW M5</strong></div>
+          <div class="summary-row"><span>Distance</span><strong><span id="tripKm">0</span> km</strong></div>
+          <div class="summary-row"><span>Pickup Date</span><strong id="pickupDateText">-</strong></div>
+          <div class="summary-row"><span>Return Date</span><strong id="returnDateText">-</strong></div>
+          <div class="summary-row"><span>Amount Paid</span><strong id="amt">₹0</strong></div>
+          <div class="summary-row"><span>Date</span><strong id="date"></strong></div>
+          <div class="summary-row total"><span>Status</span><strong>Confirmed</strong></div>
+        </div>
+
+        <div class="action-row">
+          <a class="btn btn-primary" href="dashboard.html">Back to Home</a>
+          <a class="btn btn-ghost" href="cars.html">Book Another Ride</a>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    function formatINR(amount) {
+      return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        maximumFractionDigits: 0
+      }).format(amount);
+    }
+
+    document.getElementById('amt').textContent = formatINR(Number(localStorage.getItem('pay') || '0'));
+    document.getElementById('carName').textContent = localStorage.getItem('carName') || 'BMW M5';
+    document.getElementById('tripKm').textContent = localStorage.getItem('tripDistance') || '0';
+    document.getElementById('pickupDateText').textContent = localStorage.getItem('pickupDate') || '-';
+    document.getElementById('returnDateText').textContent = localStorage.getItem('returnDate') || '-';
+    document.getElementById('bookingIdText').textContent = localStorage.getItem('bookingId') || '-';
+    document.getElementById('paymentIdText').textContent = localStorage.getItem('paymentId') || '-';
+    document.getElementById('date').textContent = new Date().toLocaleString();
+  </script>
+</body>
+</html>

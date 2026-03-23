@@ -1,0 +1,105 @@
+.filters {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr auto;
+  gap: 12px;
+}
+
+.user-cars-hero {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.car-card .spec-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.user-cars-grid {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.interactive-card {
+  cursor: pointer;
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+}
+
+.interactive-card:hover {
+  transform: translateY(-6px) scale(1.02);
+  box-shadow: 0 16px 30px rgba(37, 99, 235, 0.12);
+}
+
+.interactive-card .card-media img {
+  transition: transform 0.25s ease;
+}
+
+.interactive-card:hover .card-media img {
+  transform: scale(1.06);
+}
+
+.clickable-media {
+  cursor: zoom-in;
+}
+
+.car-conditions {
+  color: var(--muted);
+  line-height: 1.6;
+  min-height: 52px;
+}
+
+.compact-modal {
+  background: rgba(15, 23, 42, 0.38);
+}
+
+.modal-card-compact {
+  max-width: 980px;
+  width: min(980px, 92vw);
+  border-radius: 20px;
+}
+
+.modal-split {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+}
+
+.modal-image-wrap {
+  min-height: 360px;
+}
+
+.modal-image-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.modal-copy {
+  padding: 24px;
+  display: grid;
+  align-content: start;
+  gap: 18px;
+}
+
+.modal-description {
+  min-height: 72px;
+}
+
+.search-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+@media (max-width: 860px) {
+  .filters,
+  .car-card .spec-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .user-cars-hero,
+  .modal-split {
+    grid-template-columns: 1fr;
+  }
+}

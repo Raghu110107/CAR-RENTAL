@@ -1,0 +1,86 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register | Car Rental System</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="auth-body register-page">
+  <main class="auth-shell">
+    <section class="auth-layout">
+      <article class="auth-panel">
+        <a class="brand" href="dashboard.html" style="margin-bottom:18px;">
+          <span class="brand-mark">RR</span>
+          <span>Car Rental System</span>
+        </a>
+        <h1 style="font-size:2rem; margin-top:6px;">Register</h1>
+        <p class="muted" style="margin-top:8px;">Create a new account.</p>
+
+        <form id="registerForm" class="stack" style="margin-top:24px;">
+          <div class="field-group">
+            <label for="fullName">Full Name</label>
+            <input class="field" id="fullName" type="text" placeholder="Enter your full name" required>
+          </div>
+          <div class="field-group">
+            <label for="regEmail">Email Address</label>
+            <input class="field" id="regEmail" type="email" placeholder="name@example.com" required>
+          </div>
+          <div class="field-group">
+            <label for="regPhone">Phone Number</label>
+            <input class="field" id="regPhone" type="tel" placeholder="Enter 10 digit phone number" required>
+          </div>
+          <div class="field-group">
+            <label for="regPassword">Password</label>
+            <input class="field" id="regPassword" type="password" placeholder="Create a secure password" required>
+          </div>
+          <div id="registerMessage" class="notice">Fill all details to create your account.</div>
+          <button class="btn btn-primary" type="submit">Create Account</button>
+        </form>
+
+        <p class="footer-note">Already have an account? <a href="login.html" style="color:var(--primary); font-weight:700;">Login</a></p>
+      </article>
+    </section>
+  </main>
+
+  <script src="js/api-config.js"></script>
+  <script>
+    document.getElementById('registerForm').addEventListener('submit', async function (event) {
+      event.preventDefault();
+
+      const message = document.getElementById('registerMessage');
+      const payload = new URLSearchParams();
+      payload.append('name', document.getElementById('fullName').value.trim());
+      payload.append('email', document.getElementById('regEmail').value.trim());
+      payload.append('phone', document.getElementById('regPhone').value.trim());
+      payload.append('password', document.getElementById('regPassword').value);
+
+      try {
+        const response = await fetch(apiUrl('/register'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: payload.toString()
+        });
+
+        const result = await response.json();
+
+        if (result.status) {
+          message.className = 'success-banner';
+          message.textContent = result.message + ' Redirecting to login...';
+          setTimeout(function () {
+            window.location.href = 'login.html';
+          }, 1200);
+        } else {
+          message.className = 'warning-banner';
+          message.textContent = result.message;
+        }
+      } catch (error) {
+        message.className = 'warning-banner';
+        message.textContent = 'Server error while registering.';
+      }
+    });
+  </script>
+</body>
+</html>

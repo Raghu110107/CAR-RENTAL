@@ -1,0 +1,77 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login | Car Rental System</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="auth-body">
+  <main class="auth-shell">
+    <section class="auth-layout">
+      <article class="auth-panel">
+        <a class="brand" href="dashboard.html" style="margin-bottom:18px;">
+          <span class="brand-mark">RR</span>
+          <span>Car Rental System</span>
+        </a>
+        <h1 style="font-size:2rem; margin-top:6px;">Login</h1>
+        <p class="muted" style="margin-top:8px;">Enter your details to continue.</p>
+
+        <form id="loginForm" class="stack" style="margin-top:24px;">
+          <div class="field-group">
+            <label for="email">Email Address</label>
+            <input class="field" id="email" type="email" placeholder="name@example.com" required>
+          </div>
+          <div class="field-group">
+            <label for="password">Password</label>
+            <input class="field" id="password" type="password" placeholder="Enter your password" required>
+          </div>
+          <div id="loginMessage" class="notice">Login with your registered account.</div>
+          <button class="btn btn-primary" type="submit">Login</button>
+        </form>
+
+        <p class="footer-note">New user? <a href="register.html" style="color:var(--primary); font-weight:700;">Register</a></p>
+      </article>
+    </section>
+  </main>
+
+  <script src="js/api-config.js"></script>
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async function (event) {
+      event.preventDefault();
+
+      const message = document.getElementById('loginMessage');
+      const payload = new URLSearchParams();
+      payload.append('email', document.getElementById('email').value.trim());
+      payload.append('password', document.getElementById('password').value);
+
+      try {
+        const response = await fetch(apiUrl('/login'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: payload.toString()
+        });
+
+        const result = await response.json();
+
+        if (result.status) {
+          localStorage.setItem('loggedInUser', JSON.stringify(result.data));
+          message.className = 'success-banner';
+          message.textContent = 'Login successful. Redirecting...';
+          setTimeout(function () {
+            window.location.href = 'cars.html';
+          }, 1000);
+        } else {
+          message.className = 'warning-banner';
+          message.textContent = result.message;
+        }
+      } catch (error) {
+        message.className = 'warning-banner';
+        message.textContent = 'Server error while logging in.';
+      }
+    });
+  </script>
+</body>
+</html>

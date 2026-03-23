@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cars | Car Rental System</title>
+  <link rel="stylesheet" href="css/global.css">
+  <link rel="stylesheet" href="css/cars.css">
+</head>
+<body>
+  <main class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="dashboard.html">
+        <span class="brand-mark">RR</span>
+        <span>Car Rental System</span>
+      </a>
+
+      <nav class="nav-links">
+        <a class="nav-link" href="dashboard.html">Home</a>
+        <a class="nav-link active" href="cars.html">Cars</a>
+        <a class="nav-link" href="details.html">Details</a>
+        <a class="nav-link" href="booking.html">Checkout</a>
+      </nav>
+    </header>
+
+    <section class="mini-hero user-cars-hero">
+      <div>
+        <span class="eyebrow">Available cars</span>
+        <h1>Choose a car based on your trip and budget.</h1>
+        <p>Hover to preview the card, click it to open a larger centered view, and rent from there.</p>
+      </div>
+      <div class="hero-actions" style="margin-top:0;">
+        <button class="btn btn-ghost" type="button" onclick="loadCars()">Refresh Cars</button>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="search-summary">
+        <div>
+          <h2 style="font-family:'Poppins', sans-serif;">Cars available</h2>
+          <p class="muted">Live cars loaded from backend.</p>
+        </div>
+        <span id="carsCountChip" class="chip">0 cars</span>
+      </div>
+
+      <div id="carsGrid" class="grid user-cars-grid" style="margin-top:20px;"></div>
+      <div id="carsMessage" class="notice" style="margin-top:16px;">Loading cars...</div>
+    </section>
+  </main>
+
+  <div id="carModal" class="modal compact-modal" onclick="closeCarModal(event)">
+    <div class="modal-card modal-card-compact" onclick="event.stopPropagation()">
+      <div class="modal-split">
+        <div class="modal-image-wrap">
+          <img id="modalCarImage" src="images/ui.jpg" alt="Selected car">
+        </div>
+        <div class="modal-copy">
+          <div class="price-line">
+            <h2 id="modalCarName">Car Name</h2>
+            <span id="modalCarStatus" class="status-chip approved">Available</span>
+          </div>
+          <p id="modalCarMeta" class="muted"></p>
+          <p id="modalCarConditions" class="muted modal-description"></p>
+          <div class="summary-list">
+            <div class="summary-row"><span>Price</span><strong id="modalCarPrice">₹0 / km</strong></div>
+            <div class="summary-row"><span>Category</span><strong id="modalCarCategory">General</strong></div>
+          </div>
+          <div class="action-row">
+            <button class="btn btn-primary" type="button" onclick="proceedFromModal()">Rent Now</button>
+            <button class="btn btn-ghost" type="button" onclick="closeCarModal()">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api-config.js"></script>
+  <script>
+    let carsData = [];
+    let selectedModalCar = null;
+
+    function selectCar(car) {
+      localStorage.setItem('selectedCar', JSON.stringify(car));
+      localStorage.setItem('carName', car.name);
+      window.location.href = 'details.html';
+    }
+
+    function getImagePath(imagePath) {
+      if (!imagePath) {
+        return 'images/ui.jpg';
+      }
+      return apiAssetUrl(imagePath);
+    }
+
+    function openCarModal(index) {
+      selectedModalCar = carsData[index];
+      if (!selectedModalCar) {
+        return;
+      }
+
+      document.getElementById('modalCarImage').src = getImagePath(selectedModalCar.image);
+      document.getElementById('modalCarName').textContent = selectedModalCar.name;
+      document.getElementById('modalCarStatus').textContent = selectedModalCar.status;
+      document.getElementById('modalCarStatus').className = 'status-chip ' + (selectedModalCar.status === 'Available' ? 'approved' : 'pending');
+      document.getElementById('modalCarMeta').textContent = selectedModalCar.brand + ' • ' + (selectedModalCar.category || 'General');
+      document.getElementById('modalCarConditions').textContent = selectedModalCar.rental_conditions || 'No extra rental conditions added for this car.';
+      document.getElementById('modalCarPrice').textContent = '₹' + selectedModalCar.price_per_day + ' / km';
+      document.getElementById('modalCarCategory').textContent = selectedModalCar.category || 'General';
+      document.getElementById('carModal').classList.add('open');
+    }
+
+    function closeCarModal(event) {
+      if (event && event.target && event.target !== document.getElementById('carModal')) {
+        return;
+      }
+      document.getElementById('carModal').classList.remove('open');
+    }
+
+    function proceedFromModal() {
+      if (selectedModalCar) {
+        selectCar(selectedModalCar);
+      }
+    }
+
+    async function loadCars() {
+      const grid = document.getElementById('carsGrid');
+      const message = document.getElementById('carsMessage');
+
+      try {
+        const response = await fetch(apiUrl('/cars') + '?ts=' + Date.now(), {
+          cache: 'no-store'
+        });
+        const result = await response.json();
+
+        if (!result.status || !result.data.length) {
+          carsData = [];
+          grid.innerHTML = '';
+          document.getElementById('carsCountChip').textContent = '0 cars';
+          message.className = 'warning-banner';
+          message.textContent = 'No cars found.';
+          return;
+        }
+
+        carsData = result.data;
+        document.getElementById('carsCountChip').textContent = result.data.length + ' cars';
+
+        grid.innerHTML = result.data.map(function (car, index) {
+          return `
+            <article class="card car-card interactive-card" data-index="${index}">
+              <div class="card-media clickable-media" data-open="${index}">
+                <img src="${getImagePath(car.image)}" alt="${car.name}">
+              </div>
+              <h3>${car.name}</h3>
+              <p class="muted">${car.brand} • ${car.category || 'General'}</p>
+              <div class="spec-grid">
+                <span class="spec-chip">${car.brand}</span>
+                <span class="spec-chip">${car.category || 'General'}</span>
+                <span class="spec-chip">${car.status}</span>
+              </div>
+              <p class="car-conditions">${car.rental_conditions || 'Clean, comfortable, and ready for booking.'}</p>
+              <div class="price-line">
+                <div class="price">₹${car.price_per_day} <small>/ km</small></div>
+                <span class="chip">${car.status}</span>
+              </div>
+              <div class="action-row">
+                <button class="btn btn-primary" type="button" data-rent="${index}">Rent Now</button>
+                <button class="btn btn-ghost" type="button" data-open="${index}">Quick View</button>
+              </div>
+            </article>
+          `;
+        }).join('');
+
+        grid.querySelectorAll('[data-rent]').forEach(function (button) {
+          button.addEventListener('click', function () {
+            const car = carsData[Number(this.dataset.rent)];
+            selectCar(car);
+          });
+        });
+
+        grid.querySelectorAll('[data-open]').forEach(function (element) {
+          element.addEventListener('click', function () {
+            openCarModal(Number(this.dataset.open));
+          });
+        });
+
+        grid.querySelectorAll('.interactive-card').forEach(function (card) {
+          card.addEventListener('click', function (event) {
+            if (event.target.closest('button')) {
+              return;
+            }
+            openCarModal(Number(this.dataset.index));
+          });
+        });
+
+        message.className = 'success-banner';
+        message.textContent = result.data.length + ' cars loaded successfully.';
+      } catch (error) {
+        carsData = [];
+        grid.innerHTML = '';
+        document.getElementById('carsCountChip').textContent = '0 cars';
+        message.className = 'warning-banner';
+        message.textContent = 'Unable to load cars from backend: ' + error.message;
+      }
+    }
+
+    loadCars();
+    setInterval(loadCars, 8000);
+  </script>
+</body>
+</html>

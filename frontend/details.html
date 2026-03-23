@@ -1,0 +1,154 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Car Details | Car Rental System</title>
+  <link rel="stylesheet" href="css/global.css">
+</head>
+<body>
+  <main class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="dashboard.html">
+        <span class="brand-mark">RR</span>
+        <span>Car Rental System</span>
+      </a>
+
+      <nav class="nav-links">
+        <a class="nav-link" href="dashboard.html">Home</a>
+        <a class="nav-link" href="cars.html">Cars</a>
+        <a class="nav-link active" href="details.html">Details</a>
+        <a class="nav-link" href="booking.html">Booking</a>
+      </nav>
+    </header>
+
+    <section class="content-layout">
+      <article class="summary-card detail-media">
+        <div class="card-media" style="margin-bottom:0;">
+          <img id="carImage" src="images/ui.jpg" alt="Selected car">
+        </div>
+      </article>
+
+      <article class="mini-hero">
+        <span class="eyebrow">Car details</span>
+        <h1 id="carTitle">BMW M5</h1>
+        <p>This page displays selected car details and basic customer information for booking.</p>
+
+        <div class="steps">
+          <div class="step">
+            <strong>Brand</strong>
+            <p id="carBrand">BMW</p>
+          </div>
+          <div class="step">
+            <strong>Capacity</strong>
+            <p>5 seater</p>
+          </div>
+          <div class="step">
+            <strong>Rental Price</strong>
+            <p id="carRate">₹18 per km</p>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="section split-layout">
+      <article class="summary-card">
+        <div class="section-heading">
+          <div>
+            <h2>Ride overview</h2>
+            <p>Basic information about the selected car.</p>
+          </div>
+        </div>
+
+        <div class="summary-list">
+          <div class="summary-row"><span>Fuel type</span><strong>Petrol</strong></div>
+          <div class="summary-row"><span>Insurance</span><strong>Available</strong></div>
+          <div class="summary-row"><span>Security deposit</span><strong>₹2,000</strong></div>
+          <div class="summary-row"><span>Free cancellation</span><strong>Within 2 hours</strong></div>
+          <div class="summary-row total"><span>Status</span><strong id="carStatus">Available</strong></div>
+        </div>
+      </article>
+
+      <article class="summary-card">
+        <div class="section-heading">
+          <div>
+            <h2>Driver details</h2>
+            <p>Enter customer details before moving to booking.</p>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="field-group">
+            <label for="name">Full Name</label>
+            <input class="field" id="name" type="text" placeholder="Enter customer name">
+          </div>
+          <div class="field-group">
+            <label for="phone">Phone Number</label>
+            <input class="field" id="phone" type="tel" placeholder="Enter contact number">
+          </div>
+          <div class="field-group">
+            <label for="address">Pickup Address</label>
+            <textarea class="textarea" id="address" rows="4" placeholder="Enter pickup or delivery address"></textarea>
+          </div>
+          <div class="field-group">
+            <label for="idproof">ID Proof</label>
+            <input class="field" id="idproof" type="text" placeholder="Aadhaar / PAN / Driving License">
+            <span>Accepted formats: 12-digit Aadhaar, PAN, or driving license.</span>
+          </div>
+          <div id="detailMessage" class="notice">Enter valid information before continuing.</div>
+          <div class="action-row">
+            <button class="btn btn-primary" type="button" onclick="submitForm()">Validate & Continue</button>
+            <a class="btn btn-ghost" href="booking.html">Go to Booking</a>
+          </div>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script src="js/api-config.js"></script>
+  <script>
+    const selectedCar = JSON.parse(localStorage.getItem('selectedCar') || '{}');
+    const user = JSON.parse(localStorage.getItem('loggedInUser') || '{}');
+
+    if (selectedCar.name) {
+      document.getElementById('carTitle').textContent = selectedCar.name;
+      document.getElementById('carBrand').textContent = selectedCar.brand || 'Brand';
+      document.getElementById('carRate').textContent = `₹${selectedCar.price_per_day} per km`;
+      document.getElementById('carStatus').textContent = selectedCar.status || 'Available';
+      document.getElementById('carImage').src = apiAssetUrl(selectedCar.image || 'images/ui.jpg');
+    }
+
+    if (user.name) {
+      document.getElementById('name').value = user.name;
+    }
+
+    function validateID(id) {
+      const aadhaar = /^\d{12}$/;
+      const pan = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+      const dl = /^[A-Z0-9]{6,}$/;
+      return aadhaar.test(id) || pan.test(id) || dl.test(id);
+    }
+
+    function submitForm() {
+      const name = document.getElementById('name').value.trim();
+      const phone = document.getElementById('phone').value.trim();
+      const address = document.getElementById('address').value.trim();
+      const id = document.getElementById('idproof').value.trim().toUpperCase();
+      const message = document.getElementById('detailMessage');
+
+      if (!name || !phone || !address || !validateID(id)) {
+        message.className = 'warning-banner';
+        message.textContent = 'Please enter valid customer and ID details.';
+        return;
+      }
+
+      localStorage.setItem('customerDetails', JSON.stringify({ name, phone, address, idproof: id }));
+      message.className = 'success-banner';
+      message.textContent = 'Details saved. Redirecting to booking...';
+      setTimeout(function () {
+        window.location.href = 'booking.html';
+      }, 900);
+    }
+  </script>
+</body>
+</html>
