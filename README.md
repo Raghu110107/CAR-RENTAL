@@ -3,7 +3,7 @@
 ## Tech Stack
 - Frontend: HTML, CSS, JavaScript
 - Backend: Node.js, Express.js
-- Database: MySQL
+- Database: MongoDB Atlas
 
 ## Features
 - User registration and login
@@ -14,12 +14,12 @@
 - Admin booking request management
 
 ## How to Run
-1. Start MySQL in XAMPP
-2. Import `database/car_rental.sql`
-3. Open terminal in `backend`
+1. Open terminal in `backend`
+2. Create a `.env` file from `.env.example`
+3. Set `MONGODB_URI` to your MongoDB connection string
 4. Run `npm install`
 5. Run `npm start`
 6. Open `http://localhost:5000/register.html`
 
 ## Database
-MySQL is used as a local database. The schema is provided in `database/car_rental.sql`.
+MongoDB is used for users, cars, bookings, and payments. The backend seeds a few sample cars automatically when the cars collection is empty.

@@ -188,6 +188,12 @@
     let pendingBookings = [];
     let bookingHistory = [];
 
+    function escapeJsString(value) {
+      return String(value || '')
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'");
+    }
+
     function showSection(id, element) {
       document.querySelectorAll('.admin-section').forEach(function (section) {
         section.classList.remove('active');
@@ -252,9 +258,9 @@
               <div class="summary-row"><span>Image</span><strong title="${car.image}">${getImageLabel(car.image)}</strong></div>
             </div>
             <div class="action-row">
-              <button class="btn btn-primary" type="button" onclick="editCar(${car.id})">Edit</button>
-              ${canRelease ? `<button class="btn btn-ghost" type="button" onclick="releaseCar(${car.id})">Make Available</button>` : ''}
-              <button class="btn btn-ghost btn-danger-lite" type="button" onclick="deleteCar(${car.id})">Delete</button>
+              <button class="btn btn-primary" type="button" onclick="editCar('${escapeJsString(car.id)}')">Edit</button>
+              ${canRelease ? `<button class="btn btn-ghost" type="button" onclick="releaseCar('${escapeJsString(car.id)}')">Make Available</button>` : ''}
+              <button class="btn btn-ghost btn-danger-lite" type="button" onclick="deleteCar('${escapeJsString(car.id)}')">Delete</button>
             </div>
           </article>
         `;
@@ -295,8 +301,8 @@
               <div class="summary-row"><span>Method</span><strong>${booking.payment_method || 'Not submitted'}</strong></div>
             </div>
             <div class="action-row">
-              <button class="btn btn-primary" type="button" onclick="updateBookingStatus(${booking.id}, 'Approved')">Approve</button>
-              <button class="btn btn-ghost btn-danger-lite" type="button" onclick="updateBookingStatus(${booking.id}, 'Rejected')">Reject</button>
+              <button class="btn btn-primary" type="button" onclick="updateBookingStatus('${escapeJsString(booking.id)}', 'Approved')">Approve</button>
+              <button class="btn btn-ghost btn-danger-lite" type="button" onclick="updateBookingStatus('${escapeJsString(booking.id)}', 'Rejected')">Reject</button>
             </div>
           </div>
         `;
@@ -434,7 +440,7 @@
 
     function editCar(id) {
       const car = adminCars.find(function (item) {
-        return Number(item.id) === Number(id);
+        return String(item.id) === String(id);
       });
 
       if (!car) {

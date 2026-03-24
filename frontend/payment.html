@@ -95,7 +95,7 @@
     }
 
     const amount = Number(localStorage.getItem('pay') || '0');
-    const bookingId = Number(localStorage.getItem('bookingId') || '0');
+    const bookingId = localStorage.getItem('bookingId') || '';
     document.getElementById('amt').textContent = formatINR(amount);
     document.getElementById('carLabel').textContent = (localStorage.getItem('carName') || 'BMW M5') + ' booking';
     document.getElementById('distanceLabel').textContent = localStorage.getItem('tripDistance') || '0';

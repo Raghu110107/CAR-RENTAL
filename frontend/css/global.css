@@ -489,10 +489,11 @@ textarea {
 
 .auth-layout {
   width: 100%;
-  max-width: 520px;
-  grid-template-columns: 1fr;
+  max-width: 980px;
+  grid-template-columns: minmax(0, 520px) minmax(280px, 360px);
   margin-left: 1.5%;
   margin-right: 0;
+  align-items: stretch;
 }
 
 .auth-panel {
@@ -501,6 +502,24 @@ textarea {
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+}
+
+.auth-aside.auth-switch-panel {
+  display: grid;
+  align-content: center;
+  gap: 16px;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.auth-switch-panel h2 {
+  font-size: 1.7rem;
+  line-height: 1.2;
+}
+
+.auth-switch-button {
+  width: 100%;
+  justify-content: center;
 }
 
 .admin-layout {

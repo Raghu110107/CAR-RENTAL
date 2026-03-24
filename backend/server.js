@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
-const mysql = require('mysql2/promise');
+const dns = require('dns');
+const mongoose = require('mongoose');
 const multer = require('multer');
 const bcrypt = require('bcryptjs');
 const path = require('path');
@@ -10,16 +11,16 @@ require('dotenv').config();
 const app = express();
 const PORT = Number(process.env.PORT || 5000);
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/car_rental';
+const DNS_SERVERS = String(process.env.DNS_SERVERS || '8.8.8.8,1.1.1.1')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
 const frontendDir = path.join(__dirname, '..', 'frontend');
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'car_rental',
-  waitForConnections: true,
-  connectionLimit: 10
-});
+if (MONGODB_URI.startsWith('mongodb+srv://') && DNS_SERVERS.length > 0) {
+  dns.setServers(DNS_SERVERS);
+}
 
 const uploadsDir = path.join(__dirname, '..', 'frontend', 'uploads');
 if (!fs.existsSync(uploadsDir)) {
@@ -53,6 +54,57 @@ const upload = multer({
   }
 });
 
+const userSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    email: { type: String, required: true, unique: true, trim: true, lowercase: true },
+    password: { type: String, required: true },
+    phone: { type: String, required: true, trim: true }
+  },
+  { versionKey: false }
+);
+
+const carSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    brand: { type: String, required: true, trim: true },
+    category: { type: String, default: 'General', trim: true },
+    price_per_day: { type: Number, required: true },
+    image: { type: String, required: true, trim: true },
+    rental_conditions: { type: String, default: '', trim: true },
+    status: { type: String, default: 'Available', trim: true }
+  },
+  { versionKey: false }
+);
+
+const bookingSchema = new mongoose.Schema(
+  {
+    user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    car_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Car', required: true },
+    car: { type: String, required: true, trim: true },
+    pickup_date: { type: String, required: true, trim: true },
+    return_date: { type: String, required: true, trim: true },
+    total_ammount: { type: Number, required: true },
+    status: { type: String, default: 'Pending', trim: true }
+  },
+  { versionKey: false }
+);
+
+const paymentSchema = new mongoose.Schema(
+  {
+    booking_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Booking', required: true },
+    amount: { type: Number, required: true },
+    payment_method: { type: String, required: true, trim: true },
+    payment_status: { type: String, required: true, trim: true }
+  },
+  { versionKey: false }
+);
+
+const User = mongoose.model('User', userSchema);
+const Car = mongoose.model('Car', carSchema);
+const Booking = mongoose.model('Booking', bookingSchema);
+const Payment = mongoose.model('Payment', paymentSchema);
+
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -71,6 +123,10 @@ function cleanInput(value) {
   return String(value || '').trim();
 }
 
+function isValidObjectId(value) {
+  return mongoose.Types.ObjectId.isValid(cleanInput(value));
+}
+
 function buildImageUrl(imagePath) {
   if (!imagePath) {
     return `${FRONTEND_ORIGIN}:${PORT}/images/ui.jpg`;
@@ -87,25 +143,95 @@ function buildImageUrl(imagePath) {
   return `${FRONTEND_ORIGIN}:${PORT}/${imagePath}`;
 }
 
-function mapCarRow(row) {
+function mapCarDocument(car) {
   return {
-    ...row,
-    image: buildImageUrl(row.image)
+    id: String(car._id),
+    name: car.name,
+    brand: car.brand,
+    category: car.category,
+    price_per_day: car.price_per_day,
+    image: buildImageUrl(car.image),
+    rental_conditions: car.rental_conditions,
+    status: car.status
   };
 }
 
-async function syncCarStatusByName(connection, carName) {
-  const [activeBookings] = await connection.execute(
-    "SELECT id FROM bookings WHERE car = ? AND status IN ('Pending', 'Approved', 'Paid') LIMIT 1",
-    [carName]
-  );
+function mapBookingDocument(booking, paymentByBookingId) {
+  const payment = paymentByBookingId.get(String(booking._id));
+  return {
+    id: String(booking._id),
+    user_id: booking.user_id ? String(booking.user_id._id || booking.user_id) : '',
+    car_id: booking.car_id ? String(booking.car_id._id || booking.car_id) : '',
+    car: booking.car,
+    pickup_date: booking.pickup_date,
+    return_date: booking.return_date,
+    total_ammount: booking.total_ammount,
+    status: booking.status,
+    user_name: booking.user_id && booking.user_id.name ? booking.user_id.name : '',
+    user_email: booking.user_id && booking.user_id.email ? booking.user_id.email : '',
+    user_phone: booking.user_id && booking.user_id.phone ? booking.user_id.phone : '',
+    payment_amount: payment ? payment.amount : null,
+    payment_method: payment ? payment.payment_method : '',
+    payment_status: payment ? payment.payment_status : ''
+  };
+}
 
-  const nextStatus = activeBookings.length ? 'Booked' : 'Available';
-  await connection.execute('UPDATE cars SET status = ? WHERE name = ?', [nextStatus, carName]);
+async function syncCarStatusById(carId) {
+  if (!carId || !isValidObjectId(carId)) {
+    return;
+  }
+
+  const activeBooking = await Booking.findOne({
+    car_id: carId,
+    status: { $in: ['Pending', 'Approved', 'Paid'] }
+  }).lean();
+
+  const nextStatus = activeBooking ? 'Booked' : 'Available';
+  await Car.findByIdAndUpdate(carId, { status: nextStatus });
+}
+
+async function seedCarsIfEmpty() {
+  const carCount = await Car.countDocuments();
+  if (carCount > 0) {
+    return;
+  }
+
+  await Car.insertMany([
+    {
+      name: 'BMW M5',
+      brand: 'BMW',
+      category: 'Luxury',
+      price_per_day: 18,
+      image: 'images/ui.jpg',
+      rental_conditions: 'Luxury sedan in excellent condition.',
+      status: 'Available'
+    },
+    {
+      name: 'Hyundai Creta',
+      brand: 'Hyundai',
+      category: 'SUV',
+      price_per_day: 14,
+      image: 'images/ui.jpg',
+      rental_conditions: 'Comfortable SUV for city and highway trips.',
+      status: 'Available'
+    },
+    {
+      name: 'Maruti Swift',
+      brand: 'Maruti',
+      category: 'Economy',
+      price_per_day: 10,
+      image: 'images/ui.jpg',
+      rental_conditions: 'Budget-friendly hatchback for daily rides.',
+      status: 'Available'
+    }
+  ]);
 }
 
 app.get('/api/health', function (_req, res) {
-  sendJson(res, true, 'Node backend is running', { port: PORT });
+  sendJson(res, true, 'Node backend is running', {
+    port: PORT,
+    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+  });
 });
 
 app.get('/', function (_req, res) {
@@ -115,7 +241,7 @@ app.get('/', function (_req, res) {
 app.post('/api/register', async function (req, res) {
   try {
     const name = cleanInput(req.body.name);
-    const email = cleanInput(req.body.email);
+    const email = cleanInput(req.body.email).toLowerCase();
     const password = req.body.password || '';
     const phone = cleanInput(req.body.phone);
 
@@ -131,19 +257,21 @@ app.post('/api/register', async function (req, res) {
       return sendJson(res, false, 'Phone number must be 10 digits');
     }
 
-    const [existingRows] = await pool.execute('SELECT id FROM users WHERE email = ?', [email]);
-    if (existingRows.length > 0) {
+    const existingUser = await User.findOne({ email }).lean();
+    if (existingUser) {
       return sendJson(res, false, 'Email already registered');
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const [result] = await pool.execute(
-      'INSERT INTO users (name, email, password, phone) VALUES (?, ?, ?, ?)',
-      [name, email, hashedPassword, phone]
-    );
+    const user = await User.create({
+      name,
+      email,
+      password: hashedPassword,
+      phone
+    });
 
     return sendJson(res, true, 'Registration successful', {
-      user_id: result.insertId,
+      user_id: String(user._id),
       name,
       email
     });
@@ -154,26 +282,25 @@ app.post('/api/register', async function (req, res) {
 
 app.post('/api/login', async function (req, res) {
   try {
-    const email = cleanInput(req.body.email);
+    const email = cleanInput(req.body.email).toLowerCase();
     const password = req.body.password || '';
 
     if (!email || !password) {
       return sendJson(res, false, 'Email and password are required');
     }
 
-    const [rows] = await pool.execute('SELECT id, name, email, password FROM users WHERE email = ?', [email]);
-    if (rows.length === 0) {
+    const user = await User.findOne({ email });
+    if (!user) {
       return sendJson(res, false, 'User not found');
     }
 
-    const user = rows[0];
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return sendJson(res, false, 'Incorrect password');
     }
 
     return sendJson(res, true, 'Login successful', {
-      user_id: user.id,
+      user_id: String(user._id),
       name: user.name,
       email: user.email
     });
@@ -184,88 +311,106 @@ app.post('/api/login', async function (req, res) {
 
 app.get('/api/cars', async function (_req, res) {
   try {
-    const [rows] = await pool.execute(
-      `SELECT c.id, c.name, c.brand, c.category, c.price_per_day, c.image, c.rental_conditions, c.status
-       FROM cars c
-       WHERE c.status = 'Available'
-         AND NOT EXISTS (
-           SELECT 1
-           FROM bookings b
-           WHERE b.car = c.name
-             AND b.status IN ('Pending', 'Approved', 'Paid')
-         )
-       ORDER BY c.id DESC`
-    );
+    const activeBookings = await Booking.find({
+      status: { $in: ['Pending', 'Approved', 'Paid'] }
+    })
+      .select('car_id')
+      .lean();
 
-    return sendJson(res, true, 'Cars fetched successfully', rows.map(mapCarRow));
+    const unavailableIds = activeBookings.map(function (booking) {
+      return booking.car_id;
+    });
+
+    const cars = await Car.find({
+      status: 'Available',
+      _id: { $nin: unavailableIds }
+    })
+      .sort({ _id: -1 })
+      .lean();
+
+    return sendJson(res, true, 'Cars fetched successfully', cars.map(mapCarDocument));
   } catch (error) {
     return sendJson(res, false, 'Failed to fetch cars: ' + error.message);
   }
 });
 
 app.post('/api/bookings', async function (req, res) {
-  let connection;
+  let reservedCar = null;
+
   try {
-    const userId = Number(req.body.user_id || 0);
-    const carId = Number(req.body.car_id || 0);
-    const car = cleanInput(req.body.car);
+    const userId = cleanInput(req.body.user_id);
+    const carId = cleanInput(req.body.car_id);
+    const carName = cleanInput(req.body.car);
     const pickupDate = cleanInput(req.body.pickup_date);
     const returnDate = cleanInput(req.body.return_date);
     const totalAmount = Number(req.body.total_amount || 0);
     const status = cleanInput(req.body.status || 'Pending');
 
-    if (!userId || !carId || !car || !pickupDate || !returnDate || !totalAmount) {
+    if (!userId || !carId || !carName || !pickupDate || !returnDate || !totalAmount) {
       return sendJson(res, false, 'All booking fields are required');
     }
 
-    if (new Date(returnDate) < new Date(pickupDate)) {
+    if (!isValidObjectId(userId) || !isValidObjectId(carId)) {
+      return sendJson(res, false, 'Invalid user or car id');
+    }
+
+    if (returnDate < pickupDate) {
       return sendJson(res, false, 'Return date must be after pickup date');
     }
 
-    connection = await pool.getConnection();
-    await connection.beginTransaction();
+    const user = await User.findById(userId).lean();
+    if (!user) {
+      return sendJson(res, false, 'User not found');
+    }
 
-    const [cars] = await connection.execute(
-      "SELECT id, name, status FROM cars WHERE id = ? AND status = 'Available' LIMIT 1",
-      [carId]
+    reservedCar = await Car.findOneAndUpdate(
+      { _id: carId, status: 'Available' },
+      { status: 'Booked' },
+      { new: true }
     );
 
-    if (!cars.length) {
-      await connection.rollback();
+    if (!reservedCar) {
       return sendJson(res, false, 'Selected car is no longer available');
     }
 
-    const selectedCar = cars[0];
-    const [result] = await connection.execute(
-      'INSERT INTO bookings (user_id, car, pickup_date, return_date, total_ammount, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [userId, selectedCar.name, pickupDate, returnDate, totalAmount, status]
-    );
+    const existingActiveBooking = await Booking.findOne({
+      car_id: carId,
+      status: { $in: ['Pending', 'Approved', 'Paid'] }
+    }).lean();
 
-    await connection.execute("UPDATE cars SET status = 'Booked' WHERE id = ?", [carId]);
-    await connection.commit();
+    if (existingActiveBooking) {
+      await syncCarStatusById(carId);
+      return sendJson(res, false, 'Selected car is no longer available');
+    }
+
+    const booking = await Booking.create({
+      user_id: userId,
+      car_id: carId,
+      car: reservedCar.name || carName,
+      pickup_date: pickupDate,
+      return_date: returnDate,
+      total_ammount: totalAmount,
+      status
+    });
 
     return sendJson(res, true, 'Booking successful', {
-      booking_id: result.insertId,
-      car: selectedCar.name,
+      booking_id: String(booking._id),
+      car: booking.car,
       pickup_date: pickupDate,
       return_date: returnDate,
       total_amount: totalAmount
     });
   } catch (error) {
-    if (connection) {
-      await connection.rollback();
+    if (reservedCar && reservedCar._id) {
+      await syncCarStatusById(String(reservedCar._id));
     }
     return sendJson(res, false, 'Booking failed: ' + error.message);
-  } finally {
-    if (connection) {
-      connection.release();
-    }
   }
 });
 
 app.post('/api/payments', async function (req, res) {
   try {
-    const bookingId = Number(req.body.booking_id || 0);
+    const bookingId = cleanInput(req.body.booking_id);
     const amount = Number(req.body.amount || 0);
     const paymentMethod = cleanInput(req.body.payment_method);
     const paymentStatus = cleanInput(req.body.payment_status || 'Paid');
@@ -274,13 +419,24 @@ app.post('/api/payments', async function (req, res) {
       return sendJson(res, false, 'All payment fields are required');
     }
 
-    const [result] = await pool.execute(
-      'INSERT INTO payments (booking_id, amount, payment_method, payment_status) VALUES (?, ?, ?, ?)',
-      [bookingId, amount, paymentMethod, paymentStatus]
-    );
+    if (!isValidObjectId(bookingId)) {
+      return sendJson(res, false, 'Invalid booking id');
+    }
+
+    const booking = await Booking.findById(bookingId).lean();
+    if (!booking) {
+      return sendJson(res, false, 'Booking not found');
+    }
+
+    const payment = await Payment.create({
+      booking_id: bookingId,
+      amount,
+      payment_method: paymentMethod,
+      payment_status: paymentStatus
+    });
 
     return sendJson(res, true, 'Payment successful', {
-      payment_id: result.insertId,
+      payment_id: String(payment._id),
       booking_id: bookingId,
       amount,
       payment_method: paymentMethod
@@ -293,91 +449,82 @@ app.post('/api/payments', async function (req, res) {
 app.get('/api/admin/bookings', async function (req, res) {
   try {
     const scope = cleanInput(req.query.scope || 'pending').toLowerCase();
-    const whereClause = scope === 'history'
-      ? "WHERE b.status <> 'Pending'"
-      : "WHERE b.status = 'Pending'";
+    const statusFilter = scope === 'history'
+      ? { $ne: 'Pending' }
+      : 'Pending';
 
-    const [rows] = await pool.execute(
-      `SELECT
-        b.id,
-        b.user_id,
-        b.car,
-        b.pickup_date,
-        b.return_date,
-        b.total_ammount,
-        b.status,
-        u.name AS user_name,
-        u.email AS user_email,
-        u.phone AS user_phone,
-        p.amount AS payment_amount,
-        p.payment_method,
-        p.payment_status
-      FROM bookings b
-      LEFT JOIN users u ON b.user_id = u.id
-      LEFT JOIN payments p ON p.booking_id = b.id
-      ${whereClause}
-      ORDER BY b.id DESC`
+    const bookings = await Booking.find({ status: statusFilter })
+      .populate('user_id', 'name email phone')
+      .sort({ _id: -1 })
+      .lean();
+
+    const bookingIds = bookings.map(function (booking) {
+      return booking._id;
+    });
+
+    const payments = await Payment.find({ booking_id: { $in: bookingIds } })
+      .sort({ _id: -1 })
+      .lean();
+
+    const paymentByBookingId = new Map();
+    payments.forEach(function (payment) {
+      const key = String(payment.booking_id);
+      if (!paymentByBookingId.has(key)) {
+        paymentByBookingId.set(key, payment);
+      }
+    });
+
+    return sendJson(
+      res,
+      true,
+      'Admin bookings fetched successfully',
+      bookings.map(function (booking) {
+        return mapBookingDocument(booking, paymentByBookingId);
+      })
     );
-
-    return sendJson(res, true, 'Admin bookings fetched successfully', rows);
   } catch (error) {
     return sendJson(res, false, 'Failed to fetch bookings: ' + error.message);
   }
 });
 
 app.put('/api/admin/bookings/:id/status', async function (req, res) {
-  let connection;
   try {
-    const bookingId = Number(req.params.id || 0);
+    const bookingId = cleanInput(req.params.id);
     const status = cleanInput(req.body.status);
 
     if (!bookingId || !['Approved', 'Rejected'].includes(status)) {
       return sendJson(res, false, 'Valid booking id and status are required');
     }
 
-    connection = await pool.getConnection();
-    await connection.beginTransaction();
-
-    const [bookings] = await connection.execute('SELECT id, car FROM bookings WHERE id = ? LIMIT 1', [bookingId]);
-    if (!bookings.length) {
-      await connection.rollback();
+    if (!isValidObjectId(bookingId)) {
       return sendJson(res, false, 'Booking not found');
     }
 
-    const booking = bookings[0];
-    const [result] = await connection.execute('UPDATE bookings SET status = ? WHERE id = ?', [status, bookingId]);
+    const booking = await Booking.findByIdAndUpdate(
+      bookingId,
+      { status },
+      { new: true }
+    ).lean();
 
-    if (result.affectedRows === 0) {
-      await connection.rollback();
+    if (!booking) {
       return sendJson(res, false, 'Booking not found');
     }
 
-    await syncCarStatusByName(connection, booking.car);
-    await connection.commit();
+    await syncCarStatusById(String(booking.car_id));
 
     return sendJson(res, true, `Booking ${status.toLowerCase()} successfully`, {
       booking_id: bookingId,
       status
     });
   } catch (error) {
-    if (connection) {
-      await connection.rollback();
-    }
     return sendJson(res, false, 'Failed to update booking status: ' + error.message);
-  } finally {
-    if (connection) {
-      connection.release();
-    }
   }
 });
 
 app.get('/api/admin/cars', async function (_req, res) {
   try {
-    const [rows] = await pool.execute(
-      'SELECT id, name, brand, category, price_per_day, image, rental_conditions, status FROM cars ORDER BY id DESC'
-    );
-
-    return sendJson(res, true, 'Admin cars fetched successfully', rows.map(mapCarRow));
+    const cars = await Car.find().sort({ _id: -1 }).lean();
+    return sendJson(res, true, 'Admin cars fetched successfully', cars.map(mapCarDocument));
   } catch (error) {
     return sendJson(res, false, 'Failed to fetch cars: ' + error.message);
   }
@@ -401,13 +548,18 @@ app.post('/api/admin/cars', upload.single('image'), async function (req, res) {
     }
 
     const imagePath = `uploads/${req.file.filename}`;
-    const [result] = await pool.execute(
-      'INSERT INTO cars (name, brand, category, price_per_day, image, rental_conditions, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [name, brand, category, price, imagePath, conditions, status]
-    );
+    const car = await Car.create({
+      name,
+      brand,
+      category,
+      price_per_day: price,
+      image: imagePath,
+      rental_conditions: conditions,
+      status
+    });
 
     return sendJson(res, true, 'Car added successfully', {
-      car_id: result.insertId,
+      car_id: String(car._id),
       image: buildImageUrl(imagePath)
     });
   } catch (error) {
@@ -417,7 +569,7 @@ app.post('/api/admin/cars', upload.single('image'), async function (req, res) {
 
 app.put('/api/admin/cars/:id', upload.single('image'), async function (req, res) {
   try {
-    const id = Number(req.params.id || 0);
+    const id = cleanInput(req.params.id);
     const name = cleanInput(req.body.name);
     const brand = cleanInput(req.body.brand);
     const category = cleanInput(req.body.category || 'General');
@@ -429,12 +581,16 @@ app.put('/api/admin/cars/:id', upload.single('image'), async function (req, res)
       return sendJson(res, false, 'Car id, name, brand, and price are required');
     }
 
-    const [existingRows] = await pool.execute('SELECT image FROM cars WHERE id = ?', [id]);
-    if (existingRows.length === 0) {
+    if (!isValidObjectId(id)) {
       return sendJson(res, false, 'Car not found');
     }
 
-    let imagePath = existingRows[0].image;
+    const existingCar = await Car.findById(id);
+    if (!existingCar) {
+      return sendJson(res, false, 'Car not found');
+    }
+
+    let imagePath = existingCar.image;
     if (req.file) {
       imagePath = `uploads/${req.file.filename}`;
     } else if (imagePath.startsWith(`http://localhost:${PORT}/uploads/`)) {
@@ -443,10 +599,14 @@ app.put('/api/admin/cars/:id', upload.single('image'), async function (req, res)
       imagePath = imagePath.replace(`${FRONTEND_ORIGIN}:${PORT}/`, '');
     }
 
-    await pool.execute(
-      'UPDATE cars SET name = ?, brand = ?, category = ?, price_per_day = ?, image = ?, rental_conditions = ?, status = ? WHERE id = ?',
-      [name, brand, category, price, imagePath, conditions, status, id]
-    );
+    existingCar.name = name;
+    existingCar.brand = brand;
+    existingCar.category = category;
+    existingCar.price_per_day = price;
+    existingCar.image = imagePath;
+    existingCar.rental_conditions = conditions;
+    existingCar.status = status;
+    await existingCar.save();
 
     return sendJson(res, true, 'Car updated successfully', {
       id,
@@ -458,29 +618,31 @@ app.put('/api/admin/cars/:id', upload.single('image'), async function (req, res)
 });
 
 app.put('/api/admin/cars/:id/release', async function (req, res) {
-  let connection;
   try {
-    const id = Number(req.params.id || 0);
+    const id = cleanInput(req.params.id);
     if (!id) {
       return sendJson(res, false, 'Car id is required');
     }
 
-    connection = await pool.getConnection();
-    await connection.beginTransaction();
-
-    const [cars] = await connection.execute('SELECT id, name FROM cars WHERE id = ? LIMIT 1', [id]);
-    if (!cars.length) {
-      await connection.rollback();
+    if (!isValidObjectId(id)) {
       return sendJson(res, false, 'Car not found');
     }
 
-    const car = cars[0];
-    await connection.execute(
-      "UPDATE bookings SET status = 'Completed' WHERE car = ? AND status IN ('Pending', 'Approved', 'Paid')",
-      [car.name]
+    const car = await Car.findById(id);
+    if (!car) {
+      return sendJson(res, false, 'Car not found');
+    }
+
+    await Booking.updateMany(
+      {
+        car_id: id,
+        status: { $in: ['Pending', 'Approved', 'Paid'] }
+      },
+      { status: 'Completed' }
     );
-    await connection.execute("UPDATE cars SET status = 'Available' WHERE id = ?", [id]);
-    await connection.commit();
+
+    car.status = 'Available';
+    await car.save();
 
     return sendJson(res, true, 'Car released and made available again', {
       id,
@@ -488,25 +650,22 @@ app.put('/api/admin/cars/:id/release', async function (req, res) {
       status: 'Available'
     });
   } catch (error) {
-    if (connection) {
-      await connection.rollback();
-    }
     return sendJson(res, false, 'Failed to release car: ' + error.message);
-  } finally {
-    if (connection) {
-      connection.release();
-    }
   }
 });
 
 app.delete('/api/admin/cars/:id', async function (req, res) {
   try {
-    const id = Number(req.params.id || 0);
+    const id = cleanInput(req.params.id);
     if (!id) {
       return sendJson(res, false, 'Car id is required');
     }
 
-    await pool.execute('DELETE FROM cars WHERE id = ?', [id]);
+    if (!isValidObjectId(id)) {
+      return sendJson(res, false, 'Car not found');
+    }
+
+    await Car.findByIdAndDelete(id);
     return sendJson(res, true, 'Car deleted successfully');
   } catch (error) {
     return sendJson(res, false, 'Failed to delete car: ' + error.message);
@@ -521,6 +680,17 @@ app.use(function (_req, res) {
   res.status(404).sendFile(path.join(frontendDir, 'register.html'));
 });
 
-app.listen(PORT, function () {
-  console.log(`Car rental Node backend running on http://localhost:${PORT}`);
-});
+async function startServer() {
+  try {
+    await mongoose.connect(MONGODB_URI);
+    await seedCarsIfEmpty();
+    app.listen(PORT, function () {
+      console.log(`Car rental Node backend running on http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.error('Failed to connect to MongoDB:', error.message);
+    process.exit(1);
+  }
+}
+
+startServer();
