@@ -235,6 +235,7 @@
       }
 
       const cardsHtml = adminCars.map(function (car) {
+        const canRelease = car.status === 'Booked';
         return `
           <article class="admin-car-card">
             <div class="admin-car-image">
@@ -252,6 +253,7 @@
             </div>
             <div class="action-row">
               <button class="btn btn-primary" type="button" onclick="editCar(${car.id})">Edit</button>
+              ${canRelease ? `<button class="btn btn-ghost" type="button" onclick="releaseCar(${car.id})">Make Available</button>` : ''}
               <button class="btn btn-ghost btn-danger-lite" type="button" onclick="deleteCar(${car.id})">Delete</button>
             </div>
           </article>
@@ -312,7 +314,10 @@
       }
 
       historyGrid.innerHTML = bookingHistory.map(function (booking) {
-        const statusClass = booking.status === 'Approved' ? 'approved' : 'rejected';
+        let statusClass = 'rejected';
+        if (booking.status === 'Approved' || booking.status === 'Completed' || booking.status === 'Paid') {
+          statusClass = 'approved';
+        }
         return `
           <div class="history-card">
             <div class="price-line">
@@ -388,6 +393,7 @@
           message.className = 'success-banner';
           message.textContent = 'Booking status updated to ' + status + '.';
           await loadBookings();
+          await loadAdminCars();
         } else {
           message.className = 'warning-banner';
           message.textContent = result.message;
@@ -395,6 +401,34 @@
       } catch (error) {
         document.getElementById('addCarMessage').className = 'warning-banner';
         document.getElementById('addCarMessage').textContent = 'Booking update failed: ' + error.message;
+      }
+    }
+
+    async function releaseCar(id) {
+      const message = document.getElementById('addCarMessage');
+
+      if (!confirm('Make this car available again for users? This will close the current active booking for this car.')) {
+        return;
+      }
+
+      try {
+        const response = await fetch(apiUrl('/admin/cars/' + id + '/release'), {
+          method: 'PUT'
+        });
+        const result = await response.json();
+
+        if (result.status) {
+          message.className = 'success-banner';
+          message.textContent = 'Car is available again and the previous booking was closed.';
+          await loadAdminCars();
+          await loadBookings();
+        } else {
+          message.className = 'warning-banner';
+          message.textContent = result.message;
+        }
+      } catch (error) {
+        message.className = 'warning-banner';
+        message.textContent = 'Unable to release car: ' + error.message;
       }
     }
 

@@ -94,6 +94,16 @@ function mapCarRow(row) {
   };
 }
 
+async function syncCarStatusByName(connection, carName) {
+  const [activeBookings] = await connection.execute(
+    "SELECT id FROM bookings WHERE car = ? AND status IN ('Pending', 'Approved', 'Paid') LIMIT 1",
+    [carName]
+  );
+
+  const nextStatus = activeBookings.length ? 'Booked' : 'Available';
+  await connection.execute('UPDATE cars SET status = ? WHERE name = ?', [nextStatus, carName]);
+}
+
 app.get('/api/health', function (_req, res) {
   sendJson(res, true, 'Node backend is running', { port: PORT });
 });
@@ -175,7 +185,16 @@ app.post('/api/login', async function (req, res) {
 app.get('/api/cars', async function (_req, res) {
   try {
     const [rows] = await pool.execute(
-      "SELECT id, name, brand, category, price_per_day, image, rental_conditions, status FROM cars WHERE status = 'Available' ORDER BY id DESC"
+      `SELECT c.id, c.name, c.brand, c.category, c.price_per_day, c.image, c.rental_conditions, c.status
+       FROM cars c
+       WHERE c.status = 'Available'
+         AND NOT EXISTS (
+           SELECT 1
+           FROM bookings b
+           WHERE b.car = c.name
+             AND b.status IN ('Pending', 'Approved', 'Paid')
+         )
+       ORDER BY c.id DESC`
     );
 
     return sendJson(res, true, 'Cars fetched successfully', rows.map(mapCarRow));
@@ -185,15 +204,17 @@ app.get('/api/cars', async function (_req, res) {
 });
 
 app.post('/api/bookings', async function (req, res) {
+  let connection;
   try {
     const userId = Number(req.body.user_id || 0);
+    const carId = Number(req.body.car_id || 0);
     const car = cleanInput(req.body.car);
     const pickupDate = cleanInput(req.body.pickup_date);
     const returnDate = cleanInput(req.body.return_date);
     const totalAmount = Number(req.body.total_amount || 0);
     const status = cleanInput(req.body.status || 'Pending');
 
-    if (!userId || !car || !pickupDate || !returnDate || !totalAmount) {
+    if (!userId || !carId || !car || !pickupDate || !returnDate || !totalAmount) {
       return sendJson(res, false, 'All booking fields are required');
     }
 
@@ -201,20 +222,44 @@ app.post('/api/bookings', async function (req, res) {
       return sendJson(res, false, 'Return date must be after pickup date');
     }
 
-    const [result] = await pool.execute(
-      'INSERT INTO bookings (user_id, car, pickup_date, return_date, total_ammount, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [userId, car, pickupDate, returnDate, totalAmount, status]
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    const [cars] = await connection.execute(
+      "SELECT id, name, status FROM cars WHERE id = ? AND status = 'Available' LIMIT 1",
+      [carId]
     );
+
+    if (!cars.length) {
+      await connection.rollback();
+      return sendJson(res, false, 'Selected car is no longer available');
+    }
+
+    const selectedCar = cars[0];
+    const [result] = await connection.execute(
+      'INSERT INTO bookings (user_id, car, pickup_date, return_date, total_ammount, status) VALUES (?, ?, ?, ?, ?, ?)',
+      [userId, selectedCar.name, pickupDate, returnDate, totalAmount, status]
+    );
+
+    await connection.execute("UPDATE cars SET status = 'Booked' WHERE id = ?", [carId]);
+    await connection.commit();
 
     return sendJson(res, true, 'Booking successful', {
       booking_id: result.insertId,
-      car,
+      car: selectedCar.name,
       pickup_date: pickupDate,
       return_date: returnDate,
       total_amount: totalAmount
     });
   } catch (error) {
+    if (connection) {
+      await connection.rollback();
+    }
     return sendJson(res, false, 'Booking failed: ' + error.message);
+  } finally {
+    if (connection) {
+      connection.release();
+    }
   }
 });
 
@@ -281,6 +326,7 @@ app.get('/api/admin/bookings', async function (req, res) {
 });
 
 app.put('/api/admin/bookings/:id/status', async function (req, res) {
+  let connection;
   try {
     const bookingId = Number(req.params.id || 0);
     const status = cleanInput(req.body.status);
@@ -289,18 +335,39 @@ app.put('/api/admin/bookings/:id/status', async function (req, res) {
       return sendJson(res, false, 'Valid booking id and status are required');
     }
 
-    const [result] = await pool.execute('UPDATE bookings SET status = ? WHERE id = ?', [status, bookingId]);
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
 
-    if (result.affectedRows === 0) {
+    const [bookings] = await connection.execute('SELECT id, car FROM bookings WHERE id = ? LIMIT 1', [bookingId]);
+    if (!bookings.length) {
+      await connection.rollback();
       return sendJson(res, false, 'Booking not found');
     }
+
+    const booking = bookings[0];
+    const [result] = await connection.execute('UPDATE bookings SET status = ? WHERE id = ?', [status, bookingId]);
+
+    if (result.affectedRows === 0) {
+      await connection.rollback();
+      return sendJson(res, false, 'Booking not found');
+    }
+
+    await syncCarStatusByName(connection, booking.car);
+    await connection.commit();
 
     return sendJson(res, true, `Booking ${status.toLowerCase()} successfully`, {
       booking_id: bookingId,
       status
     });
   } catch (error) {
+    if (connection) {
+      await connection.rollback();
+    }
     return sendJson(res, false, 'Failed to update booking status: ' + error.message);
+  } finally {
+    if (connection) {
+      connection.release();
+    }
   }
 });
 
@@ -387,6 +454,48 @@ app.put('/api/admin/cars/:id', upload.single('image'), async function (req, res)
     });
   } catch (error) {
     return sendJson(res, false, 'Failed to update car: ' + error.message);
+  }
+});
+
+app.put('/api/admin/cars/:id/release', async function (req, res) {
+  let connection;
+  try {
+    const id = Number(req.params.id || 0);
+    if (!id) {
+      return sendJson(res, false, 'Car id is required');
+    }
+
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    const [cars] = await connection.execute('SELECT id, name FROM cars WHERE id = ? LIMIT 1', [id]);
+    if (!cars.length) {
+      await connection.rollback();
+      return sendJson(res, false, 'Car not found');
+    }
+
+    const car = cars[0];
+    await connection.execute(
+      "UPDATE bookings SET status = 'Completed' WHERE car = ? AND status IN ('Pending', 'Approved', 'Paid')",
+      [car.name]
+    );
+    await connection.execute("UPDATE cars SET status = 'Available' WHERE id = ?", [id]);
+    await connection.commit();
+
+    return sendJson(res, true, 'Car released and made available again', {
+      id,
+      name: car.name,
+      status: 'Available'
+    });
+  } catch (error) {
+    if (connection) {
+      await connection.rollback();
+    }
+    return sendJson(res, false, 'Failed to release car: ' + error.message);
+  } finally {
+    if (connection) {
+      connection.release();
+    }
   }
 });
 

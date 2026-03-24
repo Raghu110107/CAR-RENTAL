@@ -169,7 +169,7 @@
         return;
       }
 
-      if (!selectedCar.name) {
+      if (!selectedCar.id || !selectedCar.name) {
         message.className = 'warning-banner';
         message.textContent = 'Please select a car first.';
         return;
@@ -183,6 +183,7 @@
 
       const payload = new URLSearchParams();
       payload.append('user_id', user.user_id);
+      payload.append('car_id', selectedCar.id);
       payload.append('car', selectedCar.name);
       payload.append('pickup_date', pickupDate);
       payload.append('return_date', returnDate);
@@ -201,6 +202,8 @@
         const result = await response.json();
 
         if (result.status) {
+          selectedCar.status = 'Booked';
+          localStorage.setItem('selectedCar', JSON.stringify(selectedCar));
           localStorage.setItem('pay', String(payable));
           localStorage.setItem('carName', selectedCar.name);
           localStorage.setItem('tripDistance', km);
