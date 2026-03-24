@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: car-rental-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 24.14.0
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: DNS_SERVERS
+        value: 8.8.8.8,1.1.1.1
