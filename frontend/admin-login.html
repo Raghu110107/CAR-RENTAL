@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin Login | Car Rental System</title>
-  <link rel="stylesheet" href="css/style.css">
-</head>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login | Car Rental System</title>
+    <link rel="stylesheet" href="css/style.css">
+  </head>
 <body class="auth-body">
   <main class="auth-shell">
     <section class="auth-layout">
@@ -27,7 +27,8 @@
             <label for="adminPassword">Password</label>
             <input class="field" id="adminPassword" type="password" placeholder="Enter admin password">
           </div>
-          <a class="btn btn-primary" href="admin-dashboard.html">Login to Admin</a>
+          <button class="btn btn-primary" type="button" onclick="loginAdmin()">Login to Admin</button>
+          <div id="adminLoginMessage" class="notice">Use your configured admin credentials to continue.</div>
         </div>
 
         <p class="footer-note"><a href="login.html" style="color:var(--secondary); font-weight:700;">Back to customer login</a></p>
@@ -46,5 +47,55 @@
       </aside>
     </section>
   </main>
+  <script src="js/api-config.js"></script>
+  <script>
+    if (window.localStorage.getItem('adminToken')) {
+      window.location.href = 'admin-dashboard.html';
+    }
+
+    async function loginAdmin() {
+      const message = document.getElementById('adminLoginMessage');
+      const adminId = document.getElementById('adminId').value.trim();
+      const password = document.getElementById('adminPassword').value;
+
+      if (!adminId || !password) {
+        message.className = 'warning-banner';
+        message.textContent = 'Enter admin ID and password.';
+        return;
+      }
+
+      try {
+        const response = await fetch(apiUrl('/admin/login'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            admin_id: adminId,
+            password: password
+          })
+        });
+        const result = await response.json();
+
+        if (!result.status || !result.data || !result.data.token) {
+          message.className = 'warning-banner';
+          message.textContent = result.message || 'Admin login failed.';
+          return;
+        }
+
+        window.localStorage.setItem('adminToken', result.data.token);
+        window.location.href = 'admin-dashboard.html';
+      } catch (error) {
+        message.className = 'warning-banner';
+        message.textContent = 'Admin login failed: ' + error.message;
+      }
+    }
+
+    document.getElementById('adminPassword').addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') {
+        loginAdmin();
+      }
+    });
+  </script>
 </body>
 </html>

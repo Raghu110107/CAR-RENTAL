@@ -4,6 +4,7 @@ const dns = require('dns');
 const mongoose = require('mongoose');
 const multer = require('multer');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
@@ -12,11 +13,14 @@ const app = express();
 const PORT = Number(process.env.PORT || 5000);
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost';
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/car_rental';
+const ADMIN_ID = cleanEnvValue(process.env.ADMIN_ID) || 'admin';
+const ADMIN_PASSWORD = cleanEnvValue(process.env.ADMIN_PASSWORD) || 'admin123';
 const DNS_SERVERS = String(process.env.DNS_SERVERS || '8.8.8.8,1.1.1.1')
   .split(',')
   .map((value) => value.trim())
   .filter(Boolean);
 const frontendDir = path.join(__dirname, '..', 'frontend');
+const adminSessions = new Map();
 
 if (MONGODB_URI.startsWith('mongodb+srv://') && DNS_SERVERS.length > 0) {
   dns.setServers(DNS_SERVERS);
@@ -119,6 +123,10 @@ function sendJson(res, status, message, data = {}) {
   });
 }
 
+function cleanEnvValue(value) {
+  return String(value || '').trim();
+}
+
 function cleanInput(value) {
   return String(value || '').trim();
 }
@@ -183,6 +191,25 @@ function mapBookingDocument(booking, paymentByBookingId) {
   };
 }
 
+function createAdminSession() {
+  const token = crypto.randomBytes(24).toString('hex');
+  adminSessions.set(token, Date.now());
+  return token;
+}
+
+function requireAdminAuth(req, res, next) {
+  const token = cleanInput(req.headers['x-admin-token']);
+  if (!token || !adminSessions.has(token)) {
+    return res.status(401).json({
+      status: false,
+      message: 'Admin authorization required',
+      data: {}
+    });
+  }
+
+  next();
+}
+
 async function syncCarStatusById(carId) {
   if (!carId || !isValidObjectId(carId)) {
     return;
@@ -243,6 +270,38 @@ app.get('/api/health', function (_req, res) {
 
 app.get('/', function (_req, res) {
   res.sendFile(path.join(frontendDir, 'register.html'));
+});
+
+app.post('/api/admin/login', function (req, res) {
+  const adminId = cleanInput(req.body.admin_id);
+  const password = req.body.password || '';
+
+  if (!adminId || !password) {
+    return res.status(400).json({
+      status: false,
+      message: 'Admin ID and password are required',
+      data: {}
+    });
+  }
+
+  if (adminId !== ADMIN_ID || password !== ADMIN_PASSWORD) {
+    return res.status(401).json({
+      status: false,
+      message: 'Invalid admin credentials',
+      data: {}
+    });
+  }
+
+  const token = createAdminSession();
+  return sendJson(res, true, 'Admin login successful', {
+    token
+  });
+});
+
+app.post('/api/admin/logout', requireAdminAuth, function (req, res) {
+  const token = cleanInput(req.headers['x-admin-token']);
+  adminSessions.delete(token);
+  return sendJson(res, true, 'Admin logout successful');
 });
 
 app.post('/api/register', async function (req, res) {
@@ -453,7 +512,7 @@ app.post('/api/payments', async function (req, res) {
   }
 });
 
-app.get('/api/admin/bookings', async function (req, res) {
+app.get('/api/admin/bookings', requireAdminAuth, async function (req, res) {
   try {
     const scope = cleanInput(req.query.scope || 'pending').toLowerCase();
     const statusFilter = scope === 'history'
@@ -494,7 +553,7 @@ app.get('/api/admin/bookings', async function (req, res) {
   }
 });
 
-app.put('/api/admin/bookings/:id/status', async function (req, res) {
+app.put('/api/admin/bookings/:id/status', requireAdminAuth, async function (req, res) {
   try {
     const bookingId = cleanInput(req.params.id);
     const status = cleanInput(req.body.status);
@@ -528,7 +587,7 @@ app.put('/api/admin/bookings/:id/status', async function (req, res) {
   }
 });
 
-app.get('/api/admin/cars', async function (_req, res) {
+app.get('/api/admin/cars', requireAdminAuth, async function (_req, res) {
   try {
     const cars = await Car.find().sort({ _id: -1 }).lean();
     return sendJson(res, true, 'Admin cars fetched successfully', cars.map(mapCarDocument));
@@ -537,7 +596,7 @@ app.get('/api/admin/cars', async function (_req, res) {
   }
 });
 
-app.post('/api/admin/cars', upload.single('image'), async function (req, res) {
+app.post('/api/admin/cars', requireAdminAuth, upload.single('image'), async function (req, res) {
   try {
     const name = cleanInput(req.body.name);
     const brand = cleanInput(req.body.brand);
@@ -570,7 +629,7 @@ app.post('/api/admin/cars', upload.single('image'), async function (req, res) {
   }
 });
 
-app.put('/api/admin/cars/:id', upload.single('image'), async function (req, res) {
+app.put('/api/admin/cars/:id', requireAdminAuth, upload.single('image'), async function (req, res) {
   try {
     const id = cleanInput(req.params.id);
     const name = cleanInput(req.body.name);
@@ -616,7 +675,7 @@ app.put('/api/admin/cars/:id', upload.single('image'), async function (req, res)
   }
 });
 
-app.put('/api/admin/cars/:id/release', async function (req, res) {
+app.put('/api/admin/cars/:id/release', requireAdminAuth, async function (req, res) {
   try {
     const id = cleanInput(req.params.id);
     if (!id) {
@@ -653,7 +712,7 @@ app.put('/api/admin/cars/:id/release', async function (req, res) {
   }
 });
 
-app.delete('/api/admin/cars/:id', async function (req, res) {
+app.delete('/api/admin/cars/:id', requireAdminAuth, async function (req, res) {
   try {
     const id = cleanInput(req.params.id);
     if (!id) {

@@ -33,7 +33,7 @@
             <h1 style="margin-top:12px;">Admin Dashboard</h1>
             <p class="muted" style="margin-top:8px;">Add, edit, delete, and review cars from one place.</p>
           </div>
-          <a class="btn btn-primary" href="admin-login.html">Logout</a>
+          <button id="logoutButton" class="btn btn-primary" type="button">Logout</button>
         </div>
       </article>
 
@@ -129,8 +129,8 @@
             </div>
           </div>
 
-          <div id="imageName" class="notice" style="margin-top:10px;">No image selected.</div>
-          <div id="addCarMessage" class="notice" style="margin-top:18px;">Fill the form and save. Changes will reflect on the user cars page.</div>
+          <div id="imageName" class="notice" style="margin-top:10px;">No image selected. A default image will be used.</div>
+          <div id="addCarMessage" class="notice" style="margin-top:18px;">Fill the form and save. If you skip the image, a default one will be used.</div>
 
           <div class="action-row">
             <button id="saveCarButton" class="btn btn-primary" type="button" onclick="saveCar()">Save Car</button>
@@ -184,9 +184,34 @@
 
   <script src="js/api-config.js"></script>
   <script>
-    let adminCars = [];
-    let pendingBookings = [];
-    let bookingHistory = [];
+    const adminToken = window.localStorage.getItem('adminToken');
+    if (!adminToken) {
+      window.location.href = 'admin-login.html';
+    }
+
+      let adminCars = [];
+      let pendingBookings = [];
+      let bookingHistory = [];
+
+    function getAdminHeaders(extraHeaders) {
+      return Object.assign({
+        'x-admin-token': adminToken || ''
+      }, extraHeaders || {});
+    }
+
+    async function adminFetch(url, options) {
+      const requestOptions = Object.assign({}, options || {});
+      requestOptions.headers = getAdminHeaders(requestOptions.headers);
+      const response = await fetch(url, requestOptions);
+
+      if (response.status === 401 || response.status === 403) {
+        window.localStorage.removeItem('adminToken');
+        window.location.href = 'admin-login.html';
+        throw new Error('Admin session expired. Please log in again.');
+      }
+
+      return response;
+    }
 
     function escapeJsString(value) {
       return String(value || '')
@@ -349,7 +374,7 @@
 
     async function loadAdminCars() {
       try {
-        const response = await fetch(apiUrl('/admin/cars') + '?ts=' + Date.now(), { cache: 'no-store' });
+        const response = await adminFetch(apiUrl('/admin/cars') + '?ts=' + Date.now(), { cache: 'no-store' });
         const result = await response.json();
         adminCars = result.status ? result.data : [];
         renderCars();
@@ -361,8 +386,8 @@
     async function loadBookings() {
       try {
         const [pendingResponse, historyResponse] = await Promise.all([
-          fetch(apiUrl('/admin/bookings') + '?scope=pending&ts=' + Date.now(), { cache: 'no-store' }),
-          fetch(apiUrl('/admin/bookings') + '?scope=history&ts=' + Date.now(), { cache: 'no-store' })
+          adminFetch(apiUrl('/admin/bookings') + '?scope=pending&ts=' + Date.now(), { cache: 'no-store' }),
+          adminFetch(apiUrl('/admin/bookings') + '?scope=history&ts=' + Date.now(), { cache: 'no-store' })
         ]);
 
         const pendingResult = await pendingResponse.json();
@@ -384,11 +409,11 @@
       payload.append('status', status);
 
       try {
-        const response = await fetch(apiUrl('/admin/bookings/' + id + '/status'), {
+        const response = await adminFetch(apiUrl('/admin/bookings/' + id + '/status'), {
           method: 'PUT',
-          headers: {
+          headers: getAdminHeaders({
             'Content-Type': 'application/x-www-form-urlencoded'
-          },
+          }),
           body: payload.toString()
         });
 
@@ -418,7 +443,7 @@
       }
 
       try {
-        const response = await fetch(apiUrl('/admin/cars/' + id + '/release'), {
+        const response = await adminFetch(apiUrl('/admin/cars/' + id + '/release'), {
           method: 'PUT'
         });
         const result = await response.json();
@@ -476,9 +501,9 @@
       document.getElementById('formTitle').textContent = 'Add a new car';
       document.getElementById('saveCarButton').textContent = 'Save Car';
       document.getElementById('imageName').className = 'notice';
-      document.getElementById('imageName').textContent = 'No image selected.';
+      document.getElementById('imageName').textContent = 'No image selected. A default image will be used.';
       document.getElementById('addCarMessage').className = 'notice';
-      document.getElementById('addCarMessage').textContent = 'Fill the form and save. Changes will reflect on the user cars page.';
+      document.getElementById('addCarMessage').textContent = 'Fill the form and save. If you skip the image, a default one will be used.';
     }
 
     document.getElementById('carImage').addEventListener('change', function () {
@@ -488,7 +513,7 @@
         imageName.textContent = 'Selected image: ' + this.files[0].name;
       } else {
         imageName.className = 'notice';
-        imageName.textContent = 'No image selected.';
+        imageName.textContent = 'No image selected. A default image will be used.';
       }
     });
 
@@ -511,12 +536,6 @@
         return;
       }
 
-      if (!carId && (!imageInput.files || !imageInput.files[0])) {
-        message.className = 'warning-banner';
-        message.textContent = 'Please select an image while adding a new car.';
-        return;
-      }
-
       formData.append('name', name);
       formData.append('brand', brand);
       formData.append('category', category);
@@ -534,7 +553,7 @@
 
       try {
         const endpoint = carId ? apiUrl('/admin/cars/' + carId) : apiUrl('/admin/cars');
-        const response = await fetch(endpoint, {
+        const response = await adminFetch(endpoint, {
           method: carId ? 'PUT' : 'POST',
           body: formData,
           cache: 'no-store'
@@ -566,7 +585,7 @@
       formData.append('id', id);
 
       try {
-        const response = await fetch(apiUrl('/admin/cars/' + id), {
+        const response = await adminFetch(apiUrl('/admin/cars/' + id), {
           method: 'DELETE'
         });
 
@@ -596,6 +615,18 @@
         notify.style.display = 'none';
       }, 3000);
     }, 12000);
+
+    document.getElementById('logoutButton').addEventListener('click', async function () {
+      try {
+        await adminFetch(apiUrl('/admin/logout'), {
+          method: 'POST'
+        });
+      } catch (_error) {
+      }
+
+      window.localStorage.removeItem('adminToken');
+      window.location.href = 'admin-login.html';
+    });
 
     loadAdminCars();
     loadBookings();
