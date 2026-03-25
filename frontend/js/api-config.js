@@ -8,6 +8,14 @@ function resolveApiServerUrl() {
     return storedOverride.replace(/\/$/, '');
   }
 
+  var hostname = window.location.hostname || '';
+  var isRenderHost = hostname.endsWith('.onrender.com');
+  var renderBackendUrl = 'https://car-rental-3-ygm1.onrender.com';
+
+  if (isRenderHost && hostname !== 'car-rental-3-ygm1.onrender.com') {
+    return renderBackendUrl;
+  }
+
   var isLiveServerPort = window.location.port === '5500' || window.location.port === '5501';
   if (isLiveServerPort) {
     return window.location.protocol + '//' + window.location.hostname + ':5000';

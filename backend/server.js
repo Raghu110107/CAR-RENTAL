@@ -70,7 +70,7 @@ const carSchema = new mongoose.Schema(
     brand: { type: String, required: true, trim: true },
     category: { type: String, default: 'General', trim: true },
     price_per_day: { type: Number, required: true },
-    image: { type: String, required: true, trim: true },
+    image: { type: String, required: true, trim: true, default: 'images/ui.jpg' },
     rental_conditions: { type: String, default: '', trim: true },
     status: { type: String, default: 'Available', trim: true }
   },
@@ -127,20 +127,27 @@ function isValidObjectId(value) {
   return mongoose.Types.ObjectId.isValid(cleanInput(value));
 }
 
+function normalizeImagePath(imagePath) {
+  const value = cleanInput(imagePath);
+
+  if (!value) {
+    return 'images/ui.jpg';
+  }
+
+  if (value.startsWith('http://') || value.startsWith('https://')) {
+    try {
+      const parsedUrl = new URL(value);
+      return parsedUrl.pathname.replace(/^\/+/, '') || 'images/ui.jpg';
+    } catch (_error) {
+      return value;
+    }
+  }
+
+  return value.replace(/^\/+/, '');
+}
+
 function buildImageUrl(imagePath) {
-  if (!imagePath) {
-    return `${FRONTEND_ORIGIN}:${PORT}/images/ui.jpg`;
-  }
-
-  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-    return imagePath;
-  }
-
-  if (imagePath.startsWith('uploads/')) {
-    return `http://localhost:${PORT}/${imagePath}`;
-  }
-
-  return `${FRONTEND_ORIGIN}:${PORT}/${imagePath}`;
+  return normalizeImagePath(imagePath);
 }
 
 function mapCarDocument(car) {
@@ -150,7 +157,7 @@ function mapCarDocument(car) {
     brand: car.brand,
     category: car.category,
     price_per_day: car.price_per_day,
-    image: buildImageUrl(car.image),
+      image: buildImageUrl(car.image),
     rental_conditions: car.rental_conditions,
     status: car.status
   };
@@ -543,11 +550,7 @@ app.post('/api/admin/cars', upload.single('image'), async function (req, res) {
       return sendJson(res, false, 'Car name, brand, and price are required');
     }
 
-    if (!req.file) {
-      return sendJson(res, false, 'Please upload a valid image');
-    }
-
-    const imagePath = `uploads/${req.file.filename}`;
+    const imagePath = req.file ? `uploads/${req.file.filename}` : 'images/ui.jpg';
     const car = await Car.create({
       name,
       brand,
@@ -590,13 +593,9 @@ app.put('/api/admin/cars/:id', upload.single('image'), async function (req, res)
       return sendJson(res, false, 'Car not found');
     }
 
-    let imagePath = existingCar.image;
+    let imagePath = normalizeImagePath(existingCar.image);
     if (req.file) {
       imagePath = `uploads/${req.file.filename}`;
-    } else if (imagePath.startsWith(`http://localhost:${PORT}/uploads/`)) {
-      imagePath = imagePath.replace(`http://localhost:${PORT}/`, '');
-    } else if (imagePath.startsWith(`${FRONTEND_ORIGIN}:${PORT}/`)) {
-      imagePath = imagePath.replace(`${FRONTEND_ORIGIN}:${PORT}/`, '');
     }
 
     existingCar.name = name;
@@ -681,16 +680,40 @@ app.use(function (_req, res) {
 });
 
 async function startServer() {
-  try {
-    await mongoose.connect(MONGODB_URI);
-    await seedCarsIfEmpty();
-    app.listen(PORT, function () {
-      console.log(`Car rental Node backend running on http://localhost:${PORT}`);
-    });
-  } catch (error) {
-    console.error('Failed to connect to MongoDB:', error.message);
-    process.exit(1);
+  app.listen(PORT, function () {
+    console.log(`Car rental Node backend running on port ${PORT}`);
+  });
+
+  let hasSeededCars = false;
+
+  async function connectToDatabase() {
+    try {
+      await mongoose.connect(MONGODB_URI, {
+        serverSelectionTimeoutMS: 10000
+      });
+
+      console.log('MongoDB connected successfully');
+
+      if (!hasSeededCars) {
+        await seedCarsIfEmpty();
+        hasSeededCars = true;
+      }
+    } catch (error) {
+      console.error('Failed to connect to MongoDB:', error.message);
+      console.error('Retrying MongoDB connection in 10 seconds...');
+      setTimeout(connectToDatabase, 10000);
+    }
   }
+
+  mongoose.connection.on('disconnected', function () {
+    console.warn('MongoDB disconnected');
+  });
+
+  mongoose.connection.on('reconnected', function () {
+    console.log('MongoDB reconnected');
+  });
+
+  await connectToDatabase();
 }
 
 startServer();
