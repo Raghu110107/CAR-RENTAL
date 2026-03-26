@@ -330,6 +330,10 @@ app.post('/api/admin/logout', requireAdminAuth, function (req, res) {
   return sendJson(res, true, 'Admin logout successful');
 });
 
+app.get('/api/admin/session', requireAdminAuth, function (_req, res) {
+  return sendJson(res, true, 'Admin session is valid');
+});
+
 app.post('/api/register', async function (req, res) {
   try {
     const name = cleanInput(req.body.name);

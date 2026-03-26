@@ -47,15 +47,43 @@
       </aside>
     </section>
   </main>
-  <script src="js/api-config.js"></script>
-  <script>
-    if (window.localStorage.getItem('adminToken')) {
-      window.location.href = 'admin-dashboard.html';
-    }
+    <script src="js/api-config.js"></script>
+    <script>
+      validateExistingAdminSession();
 
-    async function loginAdmin() {
-      const message = document.getElementById('adminLoginMessage');
-      const adminId = document.getElementById('adminId').value.trim();
+      async function validateExistingAdminSession() {
+        const existingToken = window.localStorage.getItem('adminToken');
+        if (!existingToken) {
+          return;
+        }
+
+        try {
+          const response = await fetch(apiUrl('/admin/session'), {
+            headers: {
+              'x-admin-token': existingToken
+            },
+            cache: 'no-store'
+          });
+
+          if (!response.ok) {
+            window.localStorage.removeItem('adminToken');
+            return;
+          }
+
+          const result = await response.json();
+          if (result.status) {
+            window.location.href = 'admin-dashboard.html';
+            return;
+          }
+        } catch (_error) {
+        }
+
+        window.localStorage.removeItem('adminToken');
+      }
+
+      async function loginAdmin() {
+        const message = document.getElementById('adminLoginMessage');
+        const adminId = document.getElementById('adminId').value.trim();
       const password = document.getElementById('adminPassword').value;
 
       if (!adminId || !password) {
