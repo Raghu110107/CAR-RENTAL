@@ -236,9 +236,27 @@
       return apiAssetUrl(imagePath || 'images/ui.jpg');
     }
 
+    function escapeHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function getImageMarkup(imagePath, altText) {
+      const safeAltText = escapeHtml(altText || 'Car image');
+      return `<img src="${getImagePath(imagePath)}" alt="${safeAltText}" onerror="this.onerror=null;this.src='images/ui.jpg';">`;
+    }
+
     function getImageLabel(imagePath) {
       if (!imagePath) {
         return 'No image';
+      }
+
+      if (String(imagePath).startsWith('data:image/')) {
+        return 'Stored in database';
       }
 
       const cleanPath = String(imagePath).split('?')[0];
@@ -270,7 +288,7 @@
         return `
           <article class="admin-car-card">
             <div class="admin-car-image">
-              <img src="${getImagePath(car.image)}" alt="${car.name}">
+              ${getImageMarkup(car.image, car.name)}
             </div>
             <div class="price-line">
               <h3>${car.name}</h3>

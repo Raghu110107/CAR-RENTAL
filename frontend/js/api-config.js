@@ -36,6 +36,10 @@ window.apiAssetUrl = function apiAssetUrl(path) {
     return 'images/ui.jpg';
   }
 
+  if (path.startsWith('data:image/')) {
+    return path;
+  }
+
   if (path.startsWith('http://') || path.startsWith('https://')) {
     return path;
   }

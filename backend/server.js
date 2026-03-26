@@ -21,32 +21,17 @@ const DNS_SERVERS = String(process.env.DNS_SERVERS || '8.8.8.8,1.1.1.1')
   .filter(Boolean);
 const frontendDir = path.join(__dirname, '..', 'frontend');
 const adminSessions = new Map();
+const DEFAULT_IMAGE_PATH = 'images/ui.jpg';
 
 if (MONGODB_URI.startsWith('mongodb+srv://') && DNS_SERVERS.length > 0) {
   dns.setServers(DNS_SERVERS);
 }
 
-const uploadsDir = path.join(__dirname, '..', 'frontend', 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: function (_req, _file, cb) {
-    cb(null, uploadsDir);
-  },
-  filename: function (_req, file, cb) {
-    const safeBaseName = path
-      .parse(file.originalname)
-      .name
-      .replace(/[^a-zA-Z0-9_-]/g, '_') || 'car_image';
-    const extension = path.extname(file.originalname).toLowerCase() || '.jpg';
-    cb(null, `${Date.now()}_${safeBaseName}${extension}`);
-  }
-});
-
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024
+  },
   fileFilter: function (_req, file, cb) {
     const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.avif'];
     const extension = path.extname(file.originalname).toLowerCase();
@@ -74,7 +59,9 @@ const carSchema = new mongoose.Schema(
     brand: { type: String, required: true, trim: true },
     category: { type: String, default: 'General', trim: true },
     price_per_day: { type: Number, required: true },
-    image: { type: String, required: true, trim: true, default: 'images/ui.jpg' },
+    image: { type: String, required: true, trim: true, default: DEFAULT_IMAGE_PATH },
+    image_data: { type: Buffer, default: null },
+    image_content_type: { type: String, trim: true, default: '' },
     rental_conditions: { type: String, default: '', trim: true },
     status: { type: String, default: 'Available', trim: true }
   },
@@ -112,7 +99,6 @@ const Payment = mongoose.model('Payment', paymentSchema);
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static(uploadsDir));
 app.use(express.static(frontendDir));
 
 function sendJson(res, status, message, data = {}) {
@@ -139,13 +125,13 @@ function normalizeImagePath(imagePath) {
   const value = cleanInput(imagePath);
 
   if (!value) {
-    return 'images/ui.jpg';
+    return DEFAULT_IMAGE_PATH;
   }
 
   if (value.startsWith('http://') || value.startsWith('https://')) {
     try {
       const parsedUrl = new URL(value);
-      return parsedUrl.pathname.replace(/^\/+/, '') || 'images/ui.jpg';
+      return parsedUrl.pathname.replace(/^\/+/, '') || DEFAULT_IMAGE_PATH;
     } catch (_error) {
       return value;
     }
@@ -154,8 +140,48 @@ function normalizeImagePath(imagePath) {
   return value.replace(/^\/+/, '');
 }
 
-function buildImageUrl(imagePath) {
-  return normalizeImagePath(imagePath);
+function fileContentType(file) {
+  const mimeType = cleanInput(file && file.mimetype).toLowerCase();
+  if (mimeType.startsWith('image/')) {
+    return mimeType;
+  }
+
+  const extension = path.extname(cleanInput(file && file.originalname)).toLowerCase();
+  if (extension === '.png') {
+    return 'image/png';
+  }
+  if (extension === '.webp') {
+    return 'image/webp';
+  }
+  if (extension === '.avif') {
+    return 'image/avif';
+  }
+
+  return 'image/jpeg';
+}
+
+function resolveLegacyImagePath(imagePath) {
+  const rawValue = cleanInput(imagePath);
+  if (rawValue.startsWith('http://') || rawValue.startsWith('https://')) {
+    return rawValue;
+  }
+
+  const normalizedPath = normalizeImagePath(imagePath);
+  const absolutePath = path.join(frontendDir, normalizedPath);
+
+  if (fs.existsSync(absolutePath)) {
+    return normalizedPath;
+  }
+
+  return DEFAULT_IMAGE_PATH;
+}
+
+function buildImagePayload(car) {
+  if (car && car.image_data && car.image_content_type) {
+    return `data:${car.image_content_type};base64,${car.image_data.toString('base64')}`;
+  }
+
+  return resolveLegacyImagePath(car && car.image);
 }
 
 function mapCarDocument(car) {
@@ -165,7 +191,7 @@ function mapCarDocument(car) {
     brand: car.brand,
     category: car.category,
     price_per_day: car.price_per_day,
-      image: buildImageUrl(car.image),
+    image: buildImagePayload(car),
     rental_conditions: car.rental_conditions,
     status: car.status
   };
@@ -236,28 +262,28 @@ async function seedCarsIfEmpty() {
       brand: 'BMW',
       category: 'Luxury',
       price_per_day: 18,
-      image: 'images/ui.jpg',
-      rental_conditions: 'Luxury sedan in excellent condition.',
-      status: 'Available'
-    },
+        image: DEFAULT_IMAGE_PATH,
+        rental_conditions: 'Luxury sedan in excellent condition.',
+        status: 'Available'
+      },
     {
       name: 'Hyundai Creta',
       brand: 'Hyundai',
       category: 'SUV',
       price_per_day: 14,
-      image: 'images/ui.jpg',
-      rental_conditions: 'Comfortable SUV for city and highway trips.',
-      status: 'Available'
-    },
+        image: DEFAULT_IMAGE_PATH,
+        rental_conditions: 'Comfortable SUV for city and highway trips.',
+        status: 'Available'
+      },
     {
       name: 'Maruti Swift',
       brand: 'Maruti',
       category: 'Economy',
       price_per_day: 10,
-      image: 'images/ui.jpg',
-      rental_conditions: 'Budget-friendly hatchback for daily rides.',
-      status: 'Available'
-    }
+        image: DEFAULT_IMAGE_PATH,
+        rental_conditions: 'Budget-friendly hatchback for daily rides.',
+        status: 'Available'
+      }
   ]);
 }
 
@@ -609,20 +635,22 @@ app.post('/api/admin/cars', requireAdminAuth, upload.single('image'), async func
       return sendJson(res, false, 'Car name, brand, and price are required');
     }
 
-    const imagePath = req.file ? `uploads/${req.file.filename}` : 'images/ui.jpg';
+    const imagePath = DEFAULT_IMAGE_PATH;
     const car = await Car.create({
       name,
       brand,
       category,
       price_per_day: price,
       image: imagePath,
+      image_data: req.file ? req.file.buffer : null,
+      image_content_type: req.file ? fileContentType(req.file) : '',
       rental_conditions: conditions,
       status
     });
 
     return sendJson(res, true, 'Car added successfully', {
       car_id: String(car._id),
-      image: buildImageUrl(imagePath)
+      image: buildImagePayload(car)
     });
   } catch (error) {
     return sendJson(res, false, 'Failed to add car: ' + error.message);
@@ -652,23 +680,23 @@ app.put('/api/admin/cars/:id', requireAdminAuth, upload.single('image'), async f
       return sendJson(res, false, 'Car not found');
     }
 
-    let imagePath = normalizeImagePath(existingCar.image);
-    if (req.file) {
-      imagePath = `uploads/${req.file.filename}`;
-    }
-
     existingCar.name = name;
     existingCar.brand = brand;
     existingCar.category = category;
     existingCar.price_per_day = price;
-    existingCar.image = imagePath;
+    existingCar.image = normalizeImagePath(existingCar.image);
+    if (req.file) {
+      existingCar.image = DEFAULT_IMAGE_PATH;
+      existingCar.image_data = req.file.buffer;
+      existingCar.image_content_type = fileContentType(req.file);
+    }
     existingCar.rental_conditions = conditions;
     existingCar.status = status;
     await existingCar.save();
 
     return sendJson(res, true, 'Car updated successfully', {
       id,
-      image: buildImageUrl(imagePath)
+      image: buildImagePayload(existingCar)
     });
   } catch (error) {
     return sendJson(res, false, 'Failed to update car: ' + error.message);

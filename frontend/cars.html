@@ -92,6 +92,21 @@
       return apiAssetUrl(imagePath);
     }
 
+    function escapeHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function getImageMarkup(imagePath, altText, extraClassName) {
+      const classAttribute = extraClassName ? ` class="${extraClassName}"` : '';
+      const safeAltText = escapeHtml(altText || 'Car image');
+      return `<img${classAttribute} src="${getImagePath(imagePath)}" alt="${safeAltText}" onerror="this.onerror=null;this.src='images/ui.jpg';">`;
+    }
+
     function openCarModal(index) {
       selectedModalCar = carsData[index];
       if (!selectedModalCar) {
@@ -99,6 +114,10 @@
       }
 
       document.getElementById('modalCarImage').src = getImagePath(selectedModalCar.image);
+      document.getElementById('modalCarImage').onerror = function () {
+        this.onerror = null;
+        this.src = 'images/ui.jpg';
+      };
       document.getElementById('modalCarName').textContent = selectedModalCar.name;
       document.getElementById('modalCarStatus').textContent = selectedModalCar.status;
       document.getElementById('modalCarStatus').className = 'status-chip ' + (selectedModalCar.status === 'Available' ? 'approved' : 'pending');
@@ -148,7 +167,7 @@
           return `
             <article class="card car-card interactive-card" data-index="${index}">
               <div class="card-media clickable-media" data-open="${index}">
-                <img src="${getImagePath(car.image)}" alt="${car.name}">
+                ${getImageMarkup(car.image, car.name)}
               </div>
               <h3>${car.name}</h3>
               <p class="muted">${car.brand} • ${car.category || 'General'}</p>
